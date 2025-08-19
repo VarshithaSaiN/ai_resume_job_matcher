@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block content %}
+<h1>Admin Dashboard</h1>
+
+<p>Welcome, {{ session.get('user_name', 'Admin') }}!</p>
+
+<section>
+    <h2>Job Management</h2>
+    <form action="{{ url_for('cleanup_jobs') }}" method="post" onsubmit="return confirm('Delete all jobs that are no longer accepting applications?');">
+        <button type="submit" class="btn btn-warning">Clean Up Closed Jobs</button>
+    </form>
+</section>
+
+<!-- Add other admin features/links below -->
+<section>
+    <h2>Other Admin Tools</h2>
+    <ul>
+        <li><a href="{{ url_for('admin_manage_users') }}">Manage Users</a></li>
+        <li><a href="{{ url_for('admin_view_reports') }}">View Reports</a></li>
+        <!-- Add more admin links here -->
+    </ul>
+</section>
+
+{% endblock %}

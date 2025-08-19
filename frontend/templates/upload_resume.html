@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Resume - AI Resume Matcher{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow">
+                <div class="card-body p-4">
+                    <div class="text-center mb-4">
+                        <i class="fas fa-cloud-upload-alt fa-3x text-primary mb-3"></i>
+                        <h3>Upload Resume</h3>
+                        <p class="text-muted">Upload your resume for AI-powered job matching</p>
+                    </div>
+
+                    <!-- Show existing resumes if any -->
+<!-- In the existing resumes section of upload_resume.html, replace the list with: -->
+{% if existing_resumes %}
+<div class="alert alert-info">
+    <h6><i class="fas fa-info-circle me-2"></i>Your Previously Uploaded Resumes:</h6>
+    {% for resume in existing_resumes %}
+    <div class="d-flex justify-content-between align-items-center border-bottom py-2">
+        <div>
+            <strong>{{ resume.original_filename }}</strong> 
+            - Uploaded on {{ resume.created_at.strftime('%Y-%m-%d %H:%M') }}
+        </div>
+        <div>
+            <a href="{{ url_for('match_jobs', resume_id=resume.resume_id) }}" class="btn btn-sm btn-outline-primary me-2">
+                Find Jobs
+            </a>
+            <button type="button" 
+                    class="btn btn-sm btn-outline-danger"
+                    onclick="confirmDelete('{{ resume.resume_id }}', '{{ resume.original_filename }}')">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+
+                    <form method="POST" enctype="multipart/form-data" class="needs-validation" novalidate>
+                        <div class="mb-4">
+                            <label for="resume_file" class="form-label">
+                                <i class="fas fa-file-upload me-2"></i>Select Resume File
+                            </label>
+                            <input type="file" 
+                                   class="form-control" 
+                                   id="resume_file" 
+                                   name="resume_file" 
+                                   accept=".pdf,.docx" 
+                                   required>
+                            <div class="form-text">
+                                Supported formats: PDF, DOCX • Max size: 16 MB
+                            </div>
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-upload me-2"></i>Upload & Parse Resume
+                            </button>
+                        </div>
+                    </form>
+
+                    {% if parsed_text %}
+                    <div class="mt-4">
+                        <h5>Parsing Results:</h5>
+                        <div class="alert alert-success">
+                            <pre>{{ parsed_text | tojsonpretty }}</pre>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div class="text-center mt-4">
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

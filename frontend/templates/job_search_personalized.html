@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block title %}Personalized Job Search - AI Job Matcher{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h3><i class="fas fa-user-check me-2"></i>Personalized Job Search</h3>
+            <p class="text-muted">Jobs matched to your skills: 
+                {% for skill in user_skills[:5] %}
+                    <span class="badge bg-primary me-1">{{ skill }}</span>
+                {% endfor %}
+                {% if user_skills|length > 5 %}
+                    <span class="text-muted">+{{ user_skills|length - 5 }} more</span>
+                {% endif %}
+            </p>
+        </div>
+    </div>
+
+    <!-- Search Form (same as regular search) -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h4><i class="fas fa-search me-2"></i>Search Jobs</h4>
+                    <form method="GET" class="row g-3">
+                        <div class="col-md-4">
+                            <label for="q" class="form-label">Keywords</label>
+                            <input type="text" class="form-control" id="q" name="q" 
+                                   value="{{ search_query }}" placeholder="e.g., Python Developer">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="location" class="form-label">Location</label>
+                            <input type="text" class="form-control" id="location" name="location" 
+                                   value="{{ location_filter }}" placeholder="e.g., Remote, New York">
+                        </div>
+                        <div class="col-md-3">
+    <label for="source" class="form-label">Source</label>
+    <select class="form-control" id="source" name="source">
+        <option value="LinkedIn" {% if source_filter == 'LinkedIn' or not source_filter %}selected{% endif %}>LinkedIn</option>
+    </select>
+</div>
+
+                        <div class="col-md-2">
+                            <label class="form-label">&nbsp;</label>
+                            <button type="submit" class="btn btn-primary d-block w-100">
+                                <i class="fas fa-search me-2"></i>Search
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results with relevance scores -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h5>Found {{ total_jobs }} personalized matches</h5>
+                    {% if search_query %}
+                    <small class="text-muted">Personalized results for "{{ search_query }}"</small>
+                    {% endif %}
+                </div>
+                <a href="{{ url_for('search_jobs') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-list me-2"></i>Regular Search
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Job Results with Scores -->
+    <div class="row">
+        {% for job in jobs %}
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100 job-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h6 class="card-title">{{ job.title }}</h6>
+                        <div class="text-end">
+                           <span class="badge bg-success">{{ "%.0f"|format(job.combined_score) }}% Match</span>
+                            <span class="badge 
+                                {% if job.source == 'LinkedIn' %}bg-info
+                                {% elif job.source == 'Remotive' %}bg-warning text-dark
+                                {% else %}bg-secondary{% endif %}">
+                                {{ job.source }}
+                            </span>
+                        </div>
+                    </div>
+
+                    {% if job.company %}
+                    <div class="mb-2">
+                        <i class="fas fa-building text-muted me-2"></i>
+                        <span class="text-muted">{{ job.company }}</span>
+                    </div>
+                    {% endif %}
+
+                    <div class="mb-2">
+                        <i class="fas fa-map-marker-alt text-muted me-2"></i>
+                        <span class="text-muted">{{ job.location }}</span>
+                    </div>
+
+                    <p class="card-text small">
+                        {{ job.description[:120] }}
+                        {% if job.description|length > 120 %}...{% endif %}
+                    </p>
+
+                    <div class="mt-auto">
+                        <small class="text-muted d-flex justify-content-between">
+  Search: {{ "%.0f"|format(job.search_relevance | default(0)) }}% | Resume: {{ "%.0f"|format(job.resume_relevance | default(0)) }}%
+</small>
+                        <small class="text-muted">
+                            <i class="fas fa-calendar me-1"></i>
+                            Posted: {{ job.created_at.strftime('%Y-%m-%d') if job.created_at else 'Recent' }}
+                        </small>
+                    </div>
+                </div>
+                
+                <div class="card-footer bg-light">
+                    <div class="d-flex justify-content-between">
+                        <small class="text-muted">{{ job.source }}</small>
+                        {% if job.external_url or job.url %}
+                        <!-- Replace the "Apply" button or link -->
+<a href="{{ job.external_url or job.url }}" target="_blank" class="btn btn-primary btn-sm">
+    <i class="fas fa-external-link-alt me-1"></i>Apply Now
+</a>
+
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if jobs|length == 0 %}
+    <div class="row">
+        <div class="col-12">
+            <div class="alert alert-info text-center">
+                <i class="fas fa-info-circle fa-2x mb-3"></i>
+                <h4>No Relevant Jobs Found</h4>
+                <p>Try different keywords or update your resume to get better matches.</p>
+                <a href="{{ url_for('upload_resume') }}" class="btn btn-outline-primary me-2">
+                    <i class="fas fa-upload me-2"></i>Update Resume
+                </a>
+                <a href="{{ url_for('search_jobs') }}" class="btn btn-primary">
+                    <i class="fas fa-search me-2"></i>Try Regular Search
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

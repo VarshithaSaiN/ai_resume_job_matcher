@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}Home - AI Job Matcher{% endblock %}
+
+{% block content %}
+
+<!-- Hero Section -->
+<section class="py-5 bg-light">
+  <div class="container">
+    <div class="row align-items-center">
+      <div class="col-lg-6">
+        <h1 class="display-4 fw-bold mb-3">
+          <span class="text-primary">AI-Powered</span> Resume & Job Matcher
+        </h1>
+        <p class="lead mb-4">
+          Let artificial intelligence find your best career fit!  
+          Upload your resume and instantly discover jobs that match your skills, experience, and goals.
+        </p>
+        <div class="d-flex gap-3">
+          <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg">
+            <i class="fas fa-user-plus me-2"></i> Get Started
+          </a>
+          <a href="{{ url_for('login') }}" class="btn btn-outline-primary btn-lg">
+            <i class="fas fa-sign-in-alt me-2"></i> Login
+          </a>
+        </div>
+      </div>
+      <div class="col-lg-6 d-none d-lg-block">
+        <img src="{{ url_for('static', filename='images/hero_resume_ai.png') }}" alt="Resume AI Matcher" class="img-fluid rounded shadow"  width="200">
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Features Section -->
+<section class="py-5">
+  <div class="container">
+    <div class="text-center mb-5">
+      <h2 class="fw-bold">Platform Features</h2>
+      <p class="text-muted">Why choose our AI Resume & Job Matcher?</p>
+    </div>
+    <div class="row g-4">
+      <div class="col-md-4">
+        <div class="card h-100 border-0 shadow-sm">
+          <div class="card-body text-center">
+            <i class="fas fa-robot fa-3x text-primary mb-3"></i>
+            <h5 class="card-title">AI Resume Parsing</h5>
+            <p class="card-text text-muted">
+              Automatically extract skills, experience, and education from your uploaded resume.
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card h-100 border-0 shadow-sm">
+          <div class="card-body text-center">
+            <i class="fas fa-bullseye fa-3x text-success mb-3"></i>
+            <h5 class="card-title">Smart Job Matching</h5>
+            <p class="card-text text-muted">
+              Instantly discover jobs that fit you using intelligent matching algorithms.
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card h-100 border-0 shadow-sm">
+          <div class="card-body text-center">
+            <i class="fas fa-chart-line fa-3x text-info mb-3"></i>
+            <h5 class="card-title">Detailed Insights</h5>
+            <p class="card-text text-muted">
+              Get match scores and breakdowns for every job compared to your profile.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- How It Works Section -->
+<section class="py-5 bg-light">
+  <div class="container">
+    <div class="text-center mb-4">
+      <h2 class="fw-bold">How It Works</h2>
+    </div>
+    <div class="row row-cols-1 row-cols-md-3 g-4">
+      <div class="col">
+        <div class="card h-100 text-center border-0 shadow-sm">
+          <div class="card-body">
+            <span class="badge bg-primary rounded-pill mb-2">Step 1</span>
+            <h5 class="card-title">Register or Login</h5>
+            <p class="text-muted">Create your account or log in to get started.</p>
+          </div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card h-100 text-center border-0 shadow-sm">
+          <div class="card-body">
+            <span class="badge bg-success rounded-pill mb-2">Step 2</span>
+            <h5 class="card-title">Upload Resume</h5>
+            <p class="text-muted">Our AI securely parses your resume for skills and experience.</p>
+          </div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card h-100 text-center border-0 shadow-sm">
+          <div class="card-body">
+            <span class="badge bg-info rounded-pill mb-2">Step 3</span>
+            <h5 class="card-title">Get Job Matches</h5>
+            <p class="text-muted">View your best-fit jobs and apply directly!</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Final CTA Section -->
+<section class="py-5">
+  <div class="container text-center">
+    <h3 class="fw-bold mb-3">Ready to accelerate your career with AI?</h3>
+    <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg px-5">
+      <i class="fas fa-cloud-upload-alt me-2"></i> Upload Resume & Get Matches
+    </a>
+    <p class="mt-3 small text-muted">Employers? <a href="{{ url_for('register') }}">Register here</a> to post jobs and find perfect candidates!</p>
+  </div>
+</section>
+
+{% endblock %}

@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - AI Job Matcher{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row">
+        <div class="col-12">
+            <h2>Welcome, {{ session.user_name }}!</h2>
+            <p class="text-muted">Your personalized dashboard</p>
+        </div>
+    </div>
+    
+    {% if session.user_type == 'job_seeker' %}
+    <div class="row g-4">
+        <div class="col-md-4">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h5><i class="fas fa-file-alt me-2"></i>Resumes</h5>
+                    <h3>{{ resumes|length }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h5><i class="fas fa-bullseye me-2"></i>Job Matches</h5>
+                    <h3>{{ matching_jobs_count }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h5><i class="fas fa-percentage me-2"></i>Best Match</h5>
+                    <h3>{{ "%.2f"|format(best_match_score) }}%</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-upload me-2"></i>Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <a href="{{ url_for('upload_resume') }}" class="btn btn-primary btn-lg w-100 mb-2">
+                        <i class="fas fa-cloud-upload-alt me-2"></i>Upload New Resume
+                    </a>
+                    {% for resume in resumes %}
+                    <a href="{{ url_for('search_jobs_personalized', resume_id=resume.resume_id) }}" class="btn btn-primary btn-sm">
+                        <i class="fas fa-search me-1"></i>Find Jobs
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5><i class="fas fa-file-alt me-2"></i>Your Resumes</h5>
+                    <span class="badge bg-primary">{{ resumes|length }}</span>
+                </div>
+                <div class="card-body">
+                    {% if resumes %}
+                        {% for resume in resumes %}
+                        <div class="border rounded p-3 mb-3">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <h6 class="mb-1">
+                                        <i class="fas fa-file-pdf text-danger me-2"></i>
+                                        {{ resume.original_filename }}
+                                    </h6>
+                                    <small class="text-muted">
+                                        <i class="fas fa-calendar me-1"></i>
+                                        Uploaded: {{ resume.created_at.strftime('%Y-%m-%d %H:%M') if resume.created_at else 'Unknown' }}
+                                    </small>
+                                </div>
+                                <div class="btn-group-vertical" role="group">
+                                    <a href="{{ url_for('match_jobs', resume_id=resume.resume_id) }}" 
+                                       class="btn btn-sm btn-primary mb-1">
+                                        <i class="fas fa-search me-1"></i>Find Jobs
+                                    </a>
+                                    <button type="button" 
+                                            class="btn btn-sm btn-outline-danger"
+                                            onclick="confirmDelete('{{ resume.resume_id }}', '{{ resume.original_filename }}')">
+                                        <i class="fas fa-trash me-1"></i>Delete
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center py-3">
+                            <i class="fas fa-file-upload fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">No resumes uploaded yet.</p>
+                            <a href="{{ url_for('upload_resume') }}" class="btn btn-primary">
+                                <i class="fas fa-upload me-2"></i>Upload Your First Resume
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% elif session.user_type == 'employer' %}
+    <!-- Employer Dashboard -->
+    <div class="row g-4">
+        <div class="col-md-4">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h5><i class="fas fa-briefcase me-2"></i>Posted Jobs</h5>
+                    <h3>{{ jobs_count|default(0) }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h5><i class="fas fa-eye me-2"></i>Active Jobs</h5>
+                    <h3>{{ active_jobs|default(0) }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h5><i class="fas fa-users me-2"></i>Applications</h5>
+                    <h3>{{ applications_count|default(0) }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-plus me-2"></i>Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <a href="{{ url_for('post_job') }}" class="btn btn-primary btn-lg">
+                        <i class="fas fa-plus me-2"></i>Post New Job
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteModalLabel">
+                    <i class="fas fa-exclamation-triangle text-warning me-2"></i>Confirm Delete
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the resume <strong id="deleteFileName"></strong>?</p>
+                <div class="alert alert-warning">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Warning:</strong> This action cannot be undone. All related job matches will also be deleted.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>Cancel
+                </button>
+                <form id="deleteForm" method="POST" style="display: inline;">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash me-2"></i>Delete Resume
+                    </button>
+                </form>
+                
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function confirmDelete(resumeId, fileName) {
+    document.getElementById('deleteForm').action = '/delete_resume/' + resumeId;
+    document.getElementById('deleteFileName').textContent = fileName;
+    var deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    deleteModal.show();
+}
+</script>
+
+{% endblock %}

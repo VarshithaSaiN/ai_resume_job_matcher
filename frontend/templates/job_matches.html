@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}Job Matches - AI Job Matcher{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-bullseye me-2"></i>Job Matches</h2>
+                <div class="mb-3 d-flex justify-content-end">
+                  <a class="btn btn-info" href="{{ url_for('search_jobs_personalized') }}">
+                    <i class="fas fa-search"></i>
+                    Find Job Links 
+                  </a>
+                </div>
+            </div>
+            {% if matches %}
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle me-2"></i>
+                    Found <strong>{{ matches|length }}</strong> job matches for your resume!
+                </div>
+                <div class="row">
+                    {% for match in matches %}
+                    <div class="col-md-6 col-lg-4 mb-4">
+                        <div class="card h-100 shadow-sm job-card">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <h5 class="card-title">{{ match.job.title }}</h5>
+                                    <span class="badge 
+                                        {% if match.match_score >= 80 %}bg-success
+                                        {% elif match.match_score >= 60 %}bg-warning text-dark
+                                        {% else %}bg-danger{% endif %} fs-6">
+                                        {{ match.match_score }}%
+                                    </span>
+                                </div>
+                                <div class="mb-2">
+                                    <i class="fas fa-map-marker-alt text-muted me-2"></i>
+                                    <span class="text-muted">{{ match.job.location }}</span>
+                                </div>
+                                <div class="mb-3">
+                                    <h6 class="text-primary">Job Description:</h6>
+                                    <p class="card-text small">
+                                        {{ match.job.description[:150] }}
+                                        {% if match.job.description|length > 150 %}...{% endif %}
+                                    </p>
+                                </div>
+                                {% if match.job.requirements %}
+                                <div class="mb-3">
+                                    <h6 class="text-primary">Requirements:</h6>
+                                    <p class="card-text small text-muted">
+                                        {{ match.job.requirements[:100] }}
+                                        {% if match.job.requirements|length > 100 %}...{% endif %}
+                                    </p>
+                                </div>
+                                {% endif %}
+                                <div class="mt-auto">
+                                    <small class="text-muted">
+                                        <i class="fas fa-calendar me-1"></i>
+                                        Posted: {{ match.job.created_at.strftime('%Y-%m-%d') if match.job.created_at else 'Unknown' }}
+                                    </small>
+                                </div>
+                            </div>
+                            <div class="card-footer bg-light">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <small class="text-muted">Match Score:</small>
+                                    <span class="badge
+                                        {% if match.match_score >= 80 %} bg-success
+                                        {% elif match.match_score >= 60 %} bg-warning text-dark
+                                        {% else %} bg-danger
+                                        {% endif %}">
+                                        {{ match.match_score }}%
+                                    </span>
+                                </div>
+                                <!-- Apply Now Button - External Link -->
+                                <a href="{{ match.job.external_url or match.job.url }}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm">
+                                    <i class="fas fa-external-link-alt me-1"></i> Apply Now
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <!-- Match Summary -->
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5><i class="fas fa-chart-bar me-2"></i>Match Summary</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row text-center">
+                                    <div class="col-md-4">
+                                        <div class="p-3">
+                                            <h3 class="text-success">{{ matches|selectattr('match_score', 'ge', 80)|list|length }}</h3>
+                                            <p class="mb-0 text-muted">Excellent Matches (80%+)</p>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="p-3">
+                                            <h3 class="text-warning">{{ matches|selectattr('match_score', 'ge', 60)|selectattr('match_score', 'lt', 80)|list|length }}</h3>
+                                            <p class="mb-0 text-muted">Good Matches (60-79%)</p>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="p-3">
+                                            <h3 class="text-danger">{{ matches|selectattr('match_score', 'lt', 60)|list|length }}</h3>
+                                            <p class="mb-0 text-muted">Fair Matches (< 60%)</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% else %}
+                <div class="alert alert-info text-center">
+                    <i class="fas fa-info-circle fa-2x mb-3"></i>
+                    <h4>No Job Matches Found</h4>
+                    <p>There are currently no jobs in the database to match against your resume.</p>
+                    <p class="mb-0">
+                        <a href="{{ url_for('upload_resume') }}" class="btn btn-primary">
+                            <i class="fas fa-upload me-2"></i>Upload Another Resume
+                        </a>
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary ms-2">
+                            <i class="fas fa-home me-2"></i>Back to Dashboard
+                        </a>
+                    </p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
