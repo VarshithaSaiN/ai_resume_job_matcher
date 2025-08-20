@@ -5,7 +5,6 @@
 CREATE DATABASE ai_resume_matcher;
 
 -- Connect to the database
-\c ai_resume_matcher;
 
 -- Users table
 CREATE TABLE users (
