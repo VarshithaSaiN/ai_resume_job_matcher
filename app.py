@@ -21,6 +21,8 @@ from ai_engine.job_matcher import JobMatcher
 from flask_mail import Mail, Message
 import spacy
 nlp = spacy.load("en_core_web_sm")
+from dotenv import load_dotenv
+load_dotenv()  # This loads your .env file
 
 # Initialize Flask app
 app = Flask(__name__, template_folder="frontend/templates", static_folder='frontend/static')
