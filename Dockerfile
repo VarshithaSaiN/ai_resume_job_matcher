@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --upgrade pip setuptools wheel
 RUN pip install -r requirements.txt
-
+RUN python -m spacy download en_core_web_sm
 COPY . .
 
 EXPOSE 10000
