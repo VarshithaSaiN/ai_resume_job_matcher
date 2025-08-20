@@ -36,7 +36,7 @@ class JobFetcher:
 
 
 class LinkedInJobFetcher(JobFetcher):
-    def fetch_jobs(self, location: str = "", limit: int = 100) -> List[Dict]:
+    def fetch_jobs(self,keywords: str = "", location: str = "", limit: int = 100) -> List[Dict]:
         jobs = []
         base_url = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobs"
         start = 0
