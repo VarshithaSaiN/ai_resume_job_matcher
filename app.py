@@ -19,6 +19,8 @@ import secrets
 from ai_engine.resume_parser import ResumeParser
 from ai_engine.job_matcher import JobMatcher
 from flask_mail import Mail, Message
+import spacy
+nlp = spacy.load("en_core_web_sm")
 
 # Initialize Flask app
 app = Flask(__name__, template_folder="frontend/templates", static_folder='frontend/static')
