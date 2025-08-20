@@ -78,6 +78,26 @@ def get_db_connection():
     except Error as e:
         logger.error(f"Error connecting to DB: {e}")
         return None
+def test_database_connection():
+    """Test database connection and verify tables exist"""
+    try:
+        conn = get_db_connection()
+        if conn:
+            cursor = conn.cursor()
+            # Test if users table exists
+            cursor.execute("SELECT COUNT(*) FROM users;")
+            count = cursor.fetchone()
+            cursor.close()
+            conn.close()
+            logger.info(f"Database connection successful. Users table has {count[0]} rows.")
+            return True
+    except Exception as e:
+        logger.error(f"Database connection test failed: {e}")
+        return False
+
+# Add this before your app routes
+if not test_database_connection():
+    logger.error("Database connection failed. Please check your database setup.")
 
 def allowed_file(filename):
     ALLOWED_EXTENSIONS = {'pdf', 'docx'}
