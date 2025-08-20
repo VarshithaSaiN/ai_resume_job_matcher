@@ -3,8 +3,9 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from job_fetcher.job_updater import JobUpdater
 from job_fetcher.job_sources import JobAggregator
-import mysql.connector
-from mysql.connector import Error
+import psycopg2
+from psycopg2 import Error
+import psycopg2.extras
 import os
 import json
 from datetime import datetime
@@ -42,10 +43,11 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 # Database config
 DB_CONFIG = {
-    'host': 'localhost',
-    'database': 'ai_resume_matcher',
-    'user': 'root',
-    'password': '11@VaRshitha'
+    'host': os.environ.get('DB_HOST', 'dpg-d2io66ur433s73e19fm0-a'),
+    'database': os.environ.get('DB_NAME', 'root_zjh6'),
+    'user': os.environ.get('DB_USER', 'root_zjh6_user'),
+    'password': os.environ.get('DB_PASSWORD', 'dTpIeWW6y892QArn2I9XOZGZNLp3lwVN'),
+    'port': os.environ.get('DB_PORT', '5432')
 }
 
 # Initialize AI components
@@ -65,9 +67,9 @@ job_updater.start_background_updater(update_interval_hours=6)
 atexit.register(job_updater.stop_background_updater)
 
 def get_db_connection():
-    """Get MySQL database connection"""
+    """Get PostgreSQL database connection"""
     try:
-        connection = mysql.connector.connect(**DB_CONFIG)
+        connection = psycopg2.connect(**DB_CONFIG)
         return connection
     except Error as e:
         logger.error(f"Error connecting to DB: {e}")
@@ -111,7 +113,8 @@ def search_jobs_personalized():
     user_skills = []
     conn = get_db_connection()
     if conn:
-        cursor = conn.cursor(dictionary=True)
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
         if resume_id:
             cursor.execute("SELECT * FROM resumes WHERE resume_id=%s AND user_id=%s", (resume_id, session['user_id']))
         else:
@@ -179,7 +182,7 @@ def get_filtered_jobs_for_user(user_skills, search_query="", location_filter="",
         return []
 
     try:
-        cursor = conn.cursor(dictionary=True)
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         base_query = """
             FROM jobs
             WHERE status = 'active' AND is_active = TRUE AND source = %s
@@ -249,7 +252,7 @@ def register():
 
         conn = get_db_connection()
         if conn:
-            cursor = conn.cursor(dictionary=True)
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
             existing_user = cursor.fetchone()
             if existing_user:
@@ -280,7 +283,7 @@ def login():
 
         conn = get_db_connection()
         if conn:
-            cursor = conn.cursor(dictionary=True)
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
             user = cursor.fetchone()
             conn.close()
@@ -320,7 +323,7 @@ def dashboard():
 
     conn = get_db_connection()
     if conn:
-        cursor = conn.cursor(dictionary=True)
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
         # Fetch all resumes
         cursor.execute("SELECT * FROM resumes WHERE user_id = %s", (session['user_id'],))
@@ -380,7 +383,7 @@ def upload_resume():
 
     conn = get_db_connection()
     if conn:
-        cursor = conn.cursor(dictionary=True)
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cursor.execute("SELECT * FROM resumes WHERE user_id = %s ORDER BY created_at DESC", (session['user_id'],))
         existing_resumes = cursor.fetchall()
         cursor.close()
@@ -463,7 +466,7 @@ def match_jobs(resume_id):
     matches = []
 
     if conn:
-        cursor = conn.cursor(dictionary=True)
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cursor.execute("SELECT * FROM resumes WHERE resume_id=%s AND user_id=%s", (resume_id, session['user_id']))
         resume = cursor.fetchone()
 
@@ -480,7 +483,7 @@ def match_jobs(resume_id):
                         (session['user_id'], resume_id, job['job_id'], score, datetime.now())
                     )
                     conn.commit()
-                except mysql.connector.IntegrityError:
+                except psycopg2.IntegrityError:
                     pass
                 except Exception as e:
                     logger.error(f"Error storing job match: {e}")
@@ -506,7 +509,7 @@ def search_jobs():
     jobs = []
     total = 0
     if conn:
-        cursor = conn.cursor(dictionary=True)
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         base_query = """FROM jobs
             WHERE is_active=TRUE AND status='active'
             AND description NOT LIKE '%No longer accepting applications%'
@@ -639,7 +642,7 @@ def delete_resume(resume_id):
     try:
         conn = get_db_connection()
         if conn:
-            cursor = conn.cursor(dictionary=True)
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             cursor.execute("SELECT file_path FROM resumes WHERE resume_id=%s AND user_id=%s", (resume_id, session['user_id']))
             resume = cursor.fetchone()
             if resume and resume.get('file_path'):
@@ -671,7 +674,7 @@ def forgot_password():
             return render_template('forgot_password.html')
         conn = get_db_connection()
         if conn:
-            cursor = conn.cursor(dictionary=True)
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
             user = cursor.fetchone()
             if user:
@@ -722,7 +725,7 @@ def reset_password():
 @app.route('/reset_password/<token>', methods=['GET', 'POST'])
 def reset_password_token(token):
     conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cursor.execute("SELECT email FROM users WHERE reset_token=%s", (token,))
     user = cursor.fetchone()
     if not user:
