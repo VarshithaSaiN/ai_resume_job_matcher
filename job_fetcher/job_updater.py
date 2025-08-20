@@ -61,7 +61,7 @@ class JobUpdater:
             cursor = conn.cursor()
 
         # fetch jobs without keyword filters, just by location or none
-           jobs = self.job_aggregator.fetch_jobs(location='', limit=500)
+           jobs = self.job_aggregator.fetch_jobs('',location='', limit=500)
   # Adjust limit as needed
 
             new_jobs_count = 0
