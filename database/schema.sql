@@ -2,7 +2,7 @@
 -- Converted from MySQL to PostgreSQL
 
 -- Create database
-CREATE DATABASE ai_resume_matcher;
+CREATE DATABASE root_zjh6;
 
 -- Connect to the database
 
