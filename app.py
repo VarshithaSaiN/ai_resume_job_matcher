@@ -209,14 +209,19 @@ def get_filtered_jobs_for_user(user_skills, search_query="", location_filter="",
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         base_query = """
             FROM jobs
-            WHERE status = 'active' AND is_active = TRUE AND source = %s
+            WHERE status = 'active'
+            AND is_active = TRUE
             AND external_url NOT LIKE '%/jobs/search%'
             AND external_url NOT LIKE '%keywords=%'
             AND description NOT LIKE '%No longer accepting applications%'
             AND requirements NOT LIKE '%No longer accepting applications%'
             AND title NOT LIKE '%No longer accepting applications%'
-        """
-        params = [source_filter]
+            """
+        params = []
+
+        if source_filter:
+            base_query += " AND source = %s"
+            params.append(source_filter)
 
         if location_filter:
             base_query += " AND location LIKE %s"
