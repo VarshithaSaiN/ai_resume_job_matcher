@@ -1,7 +1,7 @@
 # job_fetcher/job_updater.py
 
-import mysql.connector
-from mysql.connector import Error
+import psycopg2
+from psycopg2 import Error
 import json
 from datetime import datetime, timedelta  # ← Add timedelta here
 import logging  # ← Add logging here
@@ -22,7 +22,7 @@ class JobUpdater:
     def get_db_connection(self):
         """Get database connection"""
         try:
-            connection = mysql.connector.connect(**self.db_config)
+            connection = psycopg2.connect(**self.db_config)
             return connection
         except Error as e:
             logger.error(f"Error connecting to MySQL: {e}")
