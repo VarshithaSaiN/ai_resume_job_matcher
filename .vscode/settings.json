@@ -1,18 +1,15 @@
 {
     "sqltools.connections": [
         {
-            "mysqlOptions": {
-                "authProtocol": "default",
-                "enableSsl": "Disabled"
-            },
             "previewLimit": 50,
-            "server": "localhost",
-            "port": 3306,
-            "driver": "MySQL",
-            "name": "AI Resume Matcher DB",
-            "database": "ai_resume_matcher",
-            "username": "root",
+            "server": "postgresql://root_zjh6_user:dTpIeWW6y892QArn2I9XOZGZNLp3lwVN@dpg-d2io66ur433s73e19fm0-a/root_zjh6",
+            "port": 5342,
+            "driver": "PostgreSQL",
+            "name": "root",
+            "database": "root_zjh6",
+            "username": "root_zjh6_user",
             "connectionTimeout": 10000
+            "ssl": false
         }
     ]
 }
