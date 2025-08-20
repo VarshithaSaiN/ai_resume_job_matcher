@@ -25,7 +25,7 @@ class JobUpdater:
             connection = psycopg2.connect(**self.db_config)
             return connection
         except Error as e:
-            logger.error(f"Error connecting to MySQL: {e}")
+            logger.error(f"Error connecting to PostgreSQL: {e}")
             return None
     
     def clean_old_jobs(self, days_old=7):
