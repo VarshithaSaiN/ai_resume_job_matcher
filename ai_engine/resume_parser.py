@@ -10,13 +10,18 @@ import os
 
 class ResumeParser:
     def __init__(self):
-        # Load spaCy model
+    # Load spaCy model with better error handling
         try:
             self.nlp = spacy.load("en_core_web_sm")
-        except OSError:
+            print("spaCy model loaded successfully")
+        except OSError as e:
+            print(f"spaCy model loading failed: {e}")
             print("Please install spaCy English model: python -m spacy download en_core_web_sm")
-            # Use a simple fallback if spaCy is not available
             self.nlp = None
+        except Exception as e:
+            print(f"Unexpected error loading spaCy: {e}")
+            self.nlp = None
+
 
         # Define skill patterns
         self.skill_patterns = {
