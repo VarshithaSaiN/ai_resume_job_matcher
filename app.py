@@ -233,7 +233,11 @@ def get_filtered_jobs_for_user(user_skills, search_query="", location_filter="",
             params.extend([like_pattern]*3)
 
         sql = f"SELECT * {base_query} ORDER BY created_at DESC LIMIT 100"
-        cursor.execute(sql, tuple(params))
+        if params:
+            cursor.execute(sql, tuple(params))
+        else:
+            cursor.execute(sql)
+
         all_jobs = cursor.fetchall()
         cursor.close()
         conn.close()
