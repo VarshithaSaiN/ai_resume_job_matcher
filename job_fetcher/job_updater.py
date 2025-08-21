@@ -57,15 +57,22 @@ class JobUpdater:
             if not conn:
                 logger.error("Failed to connect to database")
                 return
-
             cursor = conn.cursor()
 
-        # fetch jobs without keyword filters, just by location or none
-            jobs = self.job_aggregator.fetch_jobs('',location='', limit=500)
-  # Adjust limit as needed
+        # Use fallback search jobs instead of scraping real LinkedIn jobs
+            jobs = self.job_aggregator.linkedin_fetcher.create_linkedin_search_jobs('', '', 50)
+        
+        # Add some keyword-specific searches
+            keyword_searches = [
+                "Python Developer", "Data Scientist", "Software Engineer", 
+                "Full Stack Developer", "Backend Developer", "Frontend Developer"
+            ]
+        
+            for keyword in keyword_searches:
+                search_jobs = self.job_aggregator.linkedin_fetcher.create_linkedin_search_jobs(keyword, 'Remote', 4)
+                jobs.extend(search_jobs)
 
             new_jobs_count = 0
-
             for job in jobs:
                 try:
                     job_url = job.get('url') or job.get('external_url')
@@ -79,11 +86,12 @@ class JobUpdater:
                         "SELECT job_id FROM jobs WHERE title=%s AND company=%s AND source=%s",
                         (job['title'], job['company'], job['source'])
                     )
+
                     if cursor.fetchone() is None:
                         cursor.execute("""
-                            INSERT INTO jobs (employer_id, title, description, requirements, location, company,
-                            source, external_url, status, is_active, created_at)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        INSERT INTO jobs (employer_id, title, description, requirements, location, company,
+                        source, external_url, status, is_active, created_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         """, (
                             1,
                             job['title'],
@@ -98,7 +106,6 @@ class JobUpdater:
                             datetime.now()
                         ))
                         new_jobs_count += 1
-
                 except Exception as e:
                     logger.error(f"Error inserting job {job['title']}: {e}")
                     continue
@@ -106,11 +113,11 @@ class JobUpdater:
             conn.commit()
             cursor.close()
             conn.close()
-
-            logger.info(f"Added {new_jobs_count} new jobs without keyword filtering.")
+            logger.info(f"Added {new_jobs_count} new search job links.")
 
         except Exception as e:
             logger.error(f"Error updating jobs: {e}")
+
 
     def run_job_update_cycle(self):
         """Run a complete job update cycle - LinkedIn only"""
