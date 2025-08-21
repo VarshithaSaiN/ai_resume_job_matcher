@@ -10,7 +10,6 @@ from bs4 import BeautifulSoup
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
 class JobFetcher:
     def __init__(self):
         self.headers = {
@@ -27,15 +26,6 @@ class JobFetcher:
 
     def random_delay(self):
         time.sleep(random.uniform(2, 4))
-
-    def is_job_relevant(self, text: str, keywords: str) -> bool:
-        text = text.lower()
-        keywords = keywords.lower()
-        for kw in keywords.split():
-            if len(kw) > 2 and kw in text:
-                return True
-        return False
-
 
 class LinkedInJobFetcher(JobFetcher):
     """
@@ -147,7 +137,6 @@ class LinkedInJobFetcher(JobFetcher):
             if href.startswith('/'):
                 href = f"https://www.linkedin.com{href}"
 
-            # Normalize to /jobs/view/{id}/
             patterns = [
                 r'/jobs/view/(\d+)',
                 r'jobId=(\d+)',
@@ -190,7 +179,6 @@ class LinkedInJobFetcher(JobFetcher):
                 'created_at': None
             })
         return jobs
-
 
 class JobAggregator:
     def __init__(self):
