@@ -543,61 +543,54 @@ def search_jobs():
             logger.error("Failed to connect to database")
             flash("Database connection error. Please try again later.", "danger")
             return render_template('job_search.html', jobs=[], total=0, 
-                                 query=query, location=location, source=source)
-        
-        try:
-            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            base_query = """FROM jobs
-            WHERE is_active=TRUE AND status='active'
-            AND description NOT LIKE '%No longer accepting applications%'
-            AND requirements NOT LIKE '%No longer accepting applications%'
-            """
-            
-            params = []
-            
-            if source:
-                base_query += " AND source=%s"
-                params.append(source)
-                
-            if location:
-                base_query += " AND location LIKE %s"
-                params.append(f"%{location}%")
-                
-            if query:
-                base_query += " AND (title LIKE %s OR description LIKE %s OR company LIKE %s)"
-                q_param = f"%{query}%"
-                params.extend([q_param]*3)
-            
-            # Get total count
-            count_query = f"SELECT COUNT(*) as count {base_query}"
+                                   query=query, location=location, source=source)
+
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        base_query = "FROM jobs WHERE is_active=TRUE AND status='active' AND description NOT LIKE '%No longer accepting applications%' AND requirements NOT LIKE '%No longer accepting applications%'"
+        params = []
+
+        if source:
+            base_query += " AND source=%s"
+            params.append(source)
+        if location:
+            base_query += " AND location LIKE %s"
+            params.append(f"%{location}%")
+        if query:
+            base_query += " AND (title LIKE %s OR description LIKE %s OR company LIKE %s)"
+            q_param = f"%{query}%"
+            params.extend([q_param]*3)
+
+        # Get total count
+        count_query = f"SELECT COUNT(*) as count {base_query}"
+        if params:
             cursor.execute(count_query, tuple(params))
-            result = cursor.fetchone()
-            total = result['count'] if result else 0
-            
-            # Get jobs
-            select_query = f"SELECT * {base_query} ORDER BY created_at DESC LIMIT 50"
+        else:
+            cursor.execute(count_query)
+        result = cursor.fetchone()
+        total = result['count'] if result else 0
+
+        # Get jobs
+        select_query = f"SELECT * {base_query} ORDER BY created_at DESC LIMIT 50"
+        if params:
             cursor.execute(select_query, tuple(params))
-            jobs = cursor.fetchall()
-            
-            cursor.close()
-            conn.close()
-            
-        except Exception as db_error:
-            logger.error(f"Database query error: {db_error}")
-            if conn:
-                conn.close()
-            flash("Error searching jobs. Please try again.", "danger")
-            return render_template('job_search.html', jobs=[], total=0, 
-                                 query=query, location=location, source=source)
-            
+        else:
+            cursor.execute(select_query)
+        jobs = cursor.fetchall()
+
+        cursor.close()
+        conn.close()
+
     except Exception as e:
         logger.error(f"Search jobs error: {e}")
         flash("An unexpected error occurred. Please try again.", "danger")
+        # Always return a valid template even on error
         return render_template('job_search.html', jobs=[], total=0, 
-                             query="", location="", source="")
-    
+                              query=query if 'query' in locals() else "", 
+                              location=location if 'location' in locals() else "", 
+                              source=source if 'source' in locals() else "")
+
     return render_template('job_search.html', jobs=jobs, total=total, 
-                         query=query, location=location, source=source)
+                          query=query, location=location, source=source)
 
 
 @app.route('/admin/cleanup-closed-jobs', methods=['POST'])
