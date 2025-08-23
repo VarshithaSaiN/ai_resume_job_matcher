@@ -582,7 +582,7 @@ def post_job():
 
     return render_template('post_job.html')
 
- @app.route('/match_jobs/<resume_id>')
+@app.route('/match_jobs/<resume_id>')
 def match_jobs(resume_id):
     if 'user_id' not in session or session.get('user_type') != 'job_seeker':
         return redirect(url_for('login'))
