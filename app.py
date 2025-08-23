@@ -660,8 +660,106 @@ def search_jobs():
                          query=query,
                          location=location,
                          source=source)
-
-
+@app.route('/admin/populate_database')
+def populate_database():
+    if 'user_id' not in session or session.get('user_type') != 'admin':
+        return "Access denied", 403
+    
+    from datetime import datetime
+    
+    sample_jobs = [
+        {
+            'title': 'Python Developer',
+            'company': 'Tech Corp',
+            'location': 'Remote',
+            'description': 'We are looking for a skilled Python developer with experience in Flask, Django, and web development. Strong problem-solving skills required.',
+            'requirements': 'Python, Flask, Django, SQL, Git, 3+ years experience'
+        },
+        {
+            'title': 'Full Stack Developer',
+            'company': 'StartupXYZ',
+            'location': 'New York, NY',
+            'description': 'Join our growing team as a full stack developer. Work with React, Node.js, and Python to build amazing products.',
+            'requirements': 'React, Node.js, Python, JavaScript, HTML, CSS, MongoDB'
+        },
+        {
+            'title': 'Data Scientist',
+            'company': 'Data Analytics Inc',
+            'location': 'San Francisco, CA',
+            'description': 'Looking for a data scientist with machine learning expertise. Work on cutting-edge AI projects.',
+            'requirements': 'Python, Machine Learning, Pandas, NumPy, Scikit-learn, TensorFlow'
+        },
+        {
+            'title': 'Backend Developer',
+            'company': 'CloudTech Solutions',
+            'location': 'Remote',
+            'description': 'Senior backend developer needed for microservices architecture. Experience with cloud platforms required.',
+            'requirements': 'Python, Flask, Docker, Kubernetes, AWS, PostgreSQL, 5+ years experience'
+        },
+        {
+            'title': 'Software Engineer',
+            'company': 'Innovation Labs',
+            'location': 'Austin, TX',
+            'description': 'Software engineer position for developing scalable web applications. Great team environment.',
+            'requirements': 'Python, JavaScript, React, SQL, Git, Agile methodology'
+        }
+    ]
+    
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Check current job count
+        cursor.execute("SELECT COUNT(*) FROM jobs WHERE status='active'")
+        current_jobs = cursor.fetchone()[0]
+        
+        added_count = 0
+        for job in sample_jobs:
+            # Check if job already exists
+            cursor.execute(
+                "SELECT job_id FROM jobs WHERE title = %s AND company = %s",
+                (job['title'], job['company'])
+            )
+            
+            if cursor.fetchone() is None:
+                cursor.execute("""
+                    INSERT INTO jobs (employer_id, title, description, requirements, location, company,
+                                    source, status, is_active, created_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    1,  # Default employer_id
+                    job['title'],
+                    job['description'],
+                    job['requirements'],
+                    job['location'],
+                    job['company'],
+                    'Manual',
+                    'active',
+                    True,
+                    datetime.now()
+                ))
+                added_count += 1
+        
+        conn.commit()
+        
+        # Check final count
+        cursor.execute("SELECT COUNT(*) FROM jobs WHERE status='active'")
+        final_jobs = cursor.fetchone()
+        
+        cursor.close()
+        conn.close()
+        
+        return f"""
+        <h2>Database Population Complete!</h2>
+        <p>Jobs before: {current_jobs}</p>
+        <p>Jobs added: {added_count}</p>
+        <p>Jobs after: {final_jobs}</p>
+        <p><a href="/">Go to Homepage</a></p>
+        <p><a href="/search-jobs">Test Job Search</a></p>
+        """
+        
+    except Exception as e:
+        return f"Error: {str(e)}", 500
 
 @app.route('/admin/cleanup-closed-jobs', methods=['POST'])
 def cleanup_closed_jobs():
