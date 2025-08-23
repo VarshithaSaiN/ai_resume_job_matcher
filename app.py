@@ -602,7 +602,7 @@ def match_jobs(resume_id):
 @app.route('/search-jobs')
 def search_jobs():
     query = request.args.get('q', '').strip()
-    location = request.args.get('location', '').strip() 
+    location = request.args.get('location', '').strip()
     source = request.args.get('source', '').strip()
     
     conn = get_db_connection()
@@ -628,7 +628,7 @@ def search_jobs():
             params.extend([like_pattern, like_pattern, like_pattern])
             
         if location:
-            base_query += " AND location ILIKE %s" 
+            base_query += " AND location ILIKE %s"
             params.append(f"%{location}%")
             
         if source:
@@ -638,7 +638,10 @@ def search_jobs():
         base_query += " ORDER BY created_at DESC LIMIT 50"
         
         try:
-            cursor.execute(base_query, params)
+            if params:
+                cursor.execute(base_query, params)
+            else:
+                cursor.execute(base_query)
             jobs = cursor.fetchall()
             total = len(jobs)
             logger.info(f"Found {total} jobs for query: '{query}'")
@@ -653,10 +656,11 @@ def search_jobs():
     
     return render_template('job_search.html',
                          jobs=jobs,
-                         total=total, 
+                         total=total,
                          query=query,
                          location=location,
                          source=source)
+
 
 
 @app.route('/admin/cleanup-closed-jobs', methods=['POST'])
@@ -694,30 +698,39 @@ def cleanup_closed_jobs():
 
     return redirect(url_for('dashboard'))
 
-@app.route('/admin/cleanup-search-jobs', methods=['POST'])
-def cleanup_search_jobs():
-    if 'user_id' not in session:
+@app.route('/admin/cleanup_jobs', methods=['POST'])
+def cleanup_jobs():
+    if 'user_id' not in session or session.get('user_type') != 'admin':
+        flash("Access denied.", "danger")
         return redirect(url_for('login'))
+    
     try:
         conn = get_db_connection()
-        if conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                DELETE FROM jobs
-                WHERE external_url LIKE '%/jobs/search%'
-                OR external_url LIKE '%keywords=%'
-                OR company = 'Multiple Companies'
-            """)
-            deleted_count = cursor.rowcount
-            conn.commit()
-            cursor.close()
-            conn.close()
-            flash(f"Cleaned up {deleted_count} search URL jobs successfully!", "success")
-        else:
-            flash("Database connection failed", "danger")
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            DELETE FROM jobs 
+            WHERE status = 'closed' OR is_active = FALSE
+            OR description LIKE '%No longer accepting applications%'
+            OR description LIKE '%Position filled%'
+            OR description LIKE '%Applications closed%'
+            OR description LIKE '%Hiring closed%'
+            OR description LIKE '%Position closed%'
+            OR description LIKE '%Job closed%'
+            OR description LIKE '%Hiring complete%'
+        """)
+        
+        deleted_count = cursor.rowcount
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        flash(f"{deleted_count} old/closed jobs cleaned up.", "success")
     except Exception as e:
         flash(f"Cleanup failed: {e}", "danger")
-    return redirect(url_for('dashboard'))
+    
+    return redirect(url_for('admin_dashboard'))
+
 
 @app.route('/admin/dashboard')
 def admin_dashboard():
