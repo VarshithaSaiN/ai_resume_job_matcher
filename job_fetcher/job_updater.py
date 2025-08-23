@@ -1,5 +1,5 @@
 # job_fetcher/job_updater.py
-
+from .api_sources import fetch_remotive_jobs, fetch_adzuna_jobs
 import psycopg2
 from psycopg2 import Error
 import json
@@ -51,73 +51,46 @@ class JobUpdater:
             logger.error(f"Error cleaning old jobs: {e}")
             return 0
     
-    def update_jobs_for_keywords(self, keywords_list=None):
-        try:
-            conn = self.get_db_connection()
-            if not conn:
-                logger.error("Failed to connect to database")
-                return
-            cursor = conn.cursor()
-
-        # Use fallback search jobs instead of scraping real LinkedIn jobs
-            jobs = self.job_aggregator.linkedin_fetcher.create_linkedin_search_jobs('', '', 50)
-        
-        # Add some keyword-specific searches
-            keyword_searches = [
-                "Python Developer", "Data Scientist", "Software Engineer", 
-                "Full Stack Developer", "Backend Developer", "Frontend Developer"
-            ]
-        
-            for keyword in keyword_searches:
-                search_jobs = self.job_aggregator.linkedin_fetcher.create_linkedin_search_jobs(keyword, 'Remote', 4)
-                jobs.extend(search_jobs)
-
-            new_jobs_count = 0
-            for job in jobs:
-                try:
-                    job_url = job.get('url') or job.get('external_url')
-                    if job_url and ('/jobs/search' in job_url or 'keywords=' in job_url):
-                        continue
-
-                    job_status = job.get('status', 'active')
-                    job_active = job.get('is_active', True)
-
-                    cursor.execute(
-                        "SELECT job_id FROM jobs WHERE title=%s AND company=%s AND source=%s",
-                        (job['title'], job['company'], job['source'])
-                    )
-
-                    if cursor.fetchone() is None:
-                        cursor.execute("""
-                        INSERT INTO jobs (employer_id, title, description, requirements, location, company,
-                        source, external_url, status, is_active, created_at)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        """, (
-                            1,
-                            job['title'],
-                            job['description'],
-                            job['requirements'],
-                            job['location'],
-                            job['company'],
-                            job['source'],
-                            job_url,
-                            job_status,
-                            job_active,
-                            datetime.now()
-                        ))
-                        new_jobs_count += 1
-                except Exception as e:
-                    logger.error(f"Error inserting job {job['title']}: {e}")
-                    continue
-
-            conn.commit()
-            cursor.close()
-            conn.close()
-            logger.info(f"Added {new_jobs_count} new search job links.")
-
-        except Exception as e:
-            logger.error(f"Error updating jobs: {e}")
-
+def update_jobs_for_keywords(self, keywords_list=None):
+    conn = self.get_db_connection()
+    if not conn:
+        return
+    cursor = conn.cursor()
+    jobs = []
+    # Fetch from Remotive and Adzuna for each keyword
+    for kw in ["Python Developer", "Data Scientist", "Full Stack Developer"]:
+        jobs.extend(fetch_remotive_jobs(kw, limit=10))
+        jobs.extend(fetch_adzuna_jobs(kw, limit=10))
+    # Insert logic remains the same
+    new_count = 0
+    for job in jobs:
+        url = job["external_url"]
+        cursor.execute(
+            "SELECT job_id FROM jobs WHERE title=%s AND company=%s AND source=%s",
+            (job["title"], job["company"], job["source"])
+        )
+        if cursor.fetchone() is None:
+            cursor.execute("""
+                INSERT INTO jobs (employer_id, title, description, requirements,
+                                  location, company, source, external_url,
+                                  status, is_active, created_at)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'active',TRUE,%s)
+            """, (
+                1,
+                job["title"],
+                job["description"],
+                job["requirements"],
+                job["location"],
+                job["company"],
+                job["source"],
+                url,
+                job["created_at"]
+            ))
+            new_count += 1
+    conn.commit()
+    cursor.close()
+    conn.close()
+    logger.info(f"Added {new_count} new jobs from Remotive & Adzuna.")
 
     def run_job_update_cycle(self):
         """Run a complete job update cycle - LinkedIn only"""
