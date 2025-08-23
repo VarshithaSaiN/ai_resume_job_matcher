@@ -214,44 +214,52 @@ def admin_statistics():
 def index():
     return render_template('index.html')
 
-@app.route('/jobs/search-personalized')
-def search_jobs_personalized():
+@app.route('/job_search_personalized')
+def job_search_personalized():
     if 'user_id' not in session:
         return redirect(url_for('login'))
-
-    resume_id = request.args.get('resume_id', None)
-    search_query = request.args.get('q', '').strip()
-    location_filter = request.args.get('location', '').strip()
-    source_filter = request.args.get('source', 'LinkedIn').strip()
-
-    user_skills = []
+    
     conn = get_db_connection()
-    if conn:
-        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-
-        if resume_id:
-            cursor.execute("SELECT * FROM resumes WHERE resume_id=%s AND user_id=%s", (resume_id, session['user_id']))
-        else:
-            cursor.execute("SELECT * FROM resumes WHERE user_id=%s ORDER BY created_at DESC LIMIT 1", (session['user_id'],))
-        resume = cursor.fetchone()
-        if resume and resume.get('parsed_text'):
-            user_skills = json.loads(resume['parsed_text']).get('skills', [])
-        cursor.close()
-        conn.close()
-
-    filtered_jobs = get_filtered_jobs_for_user(user_skills, search_query, location_filter, source_filter)
-    jobs = filtered_jobs[:50]
-    total_jobs = len(filtered_jobs)
-
+    if not conn:
+        flash("Database connection error", "danger")
+        return redirect(url_for('dashboard'))
+    
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    
+    # Get user's latest resume
+    cursor.execute("""
+        SELECT * FROM resumes 
+        WHERE user_id = %s 
+        ORDER BY created_at DESC 
+        LIMIT 1
+    """, (session['user_id'],))
+    
+    resume = cursor.fetchone()
+    user_skills = []
+    
+    if resume and resume.get('parsed_text'):
+        try:
+            parsed = json.loads(resume['parsed_text'])
+            user_skills = parsed.get('skills', [])
+        except (json.JSONDecodeError, KeyError):
+            user_skills = []
+    
+    cursor.close()
+    conn.close()
+    
+    # Get matching jobs
+    if user_skills:
+        jobs = get_filtered_jobs_for_user(user_skills, limit=50)
+    else:
+        jobs = []
+    
     return render_template(
-        "job_search_personalized.html",
+        'job_search_personalized.html',
         jobs=jobs,
-        total_jobs=total_jobs,
         user_skills=user_skills,
-        search_query=search_query,
-        location_filter=location_filter,
-        source_filter=source_filter
+        total_jobs=len(jobs)
     )
+
 
 def calculate_search_relevance(job, search_query):
     """Calculate relevance score"""
@@ -286,71 +294,72 @@ def calculate_search_relevance(job, search_query):
             relevance_score += 15
 
     return min(relevance_score, 100)
-def get_filtered_jobs_for_user(user_skills, search_query="", location_filter="", source_filter=""):
-    """
-    Get filtered jobs for user - FIXED VERSION
-    """
+def get_filtered_jobs_for_user(user_skills, limit=50):
+    """Get jobs filtered and matched for user skills with proper scoring"""
+    if not user_skills:
+        return []
+    
     conn = get_db_connection()
     if not conn:
         return []
-
-    try:
-        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        base_query = """
-            SELECT * FROM jobs
-            WHERE status = 'active'
-            AND is_active = TRUE
-            AND (external_url IS NULL OR external_url NOT LIKE '%/jobs/search%')
-        """
-        params = []
-
-        # Remove the overly restrictive source filter
-        if source_filter and source_filter != "":
-            base_query += " AND source = %s"
-            params.append(source_filter)
-
-        if location_filter:
-            base_query += " AND location ILIKE %s"
-            params.append(f"%{location_filter}%")
-
-        if search_query:
-            base_query += " AND (title ILIKE %s OR description ILIKE %s OR company ILIKE %s)"
-            like_pattern = f"%{search_query}%"
-            params.extend([like_pattern]*3)
-
-        base_query += " ORDER BY created_at DESC LIMIT 100"
         
-        if params:
-            cursor.execute(base_query, params)
-        else:
-            cursor.execute(base_query)
-
-        all_jobs = cursor.fetchall()
-        cursor.close()
-        conn.close()
-
-        filtered_jobs = []
-        for job in all_jobs:
-            # Calculate match score
-            match_score = calculate_resume_job_match(job, user_skills) if user_skills else 50
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    
+    try:
+        # Get active jobs (exclude manual jobs for better results)
+        cursor.execute('''
+            SELECT * FROM jobs 
+            WHERE status='active' AND is_active=TRUE 
+            AND source != 'Manual'
+            AND description IS NOT NULL 
+            AND requirements IS NOT NULL
+            ORDER BY created_at DESC
+        ''')
+        
+        jobs = cursor.fetchall()
+        matched_jobs = []
+        
+        # Convert user skills to lowercase for better matching
+        user_skills_lower = [skill.lower() for skill in user_skills]
+        
+        for job in jobs:
+            # Create a combined text for skill matching
+            job_text = f"{job.get('title', '')} {job.get('description', '')} {job.get('requirements', '')}".lower()
             
-            # Add all jobs, not just ones with high scores
-            job_dict = dict(job)
-            job_dict['combined_score'] = match_score
-            job_dict['match_score'] = match_score
-            job_dict['search_score'] = match_score
-            job_dict['resume_score'] = match_score
+            # Count skill matches
+            skill_matches = 0
+            matched_skills = []
             
-            filtered_jobs.append(job_dict)
-
-        # Sort by match score
-        filtered_jobs.sort(key=lambda x: x['combined_score'], reverse=True)
-        return filtered_jobs
+            for skill in user_skills_lower:
+                if skill in job_text:
+                    skill_matches += 1
+                    matched_skills.append(skill)
+            
+            # Calculate match score (percentage)
+            if user_skills_lower:
+                match_score = (skill_matches / len(user_skills_lower)) * 100
+            else:
+                match_score = 0
+            
+            # Only include jobs with at least 1 skill match
+            if skill_matches > 0:
+                job_dict = dict(job)
+                job_dict['match_score'] = round(match_score, 1)
+                job_dict['matched_skills'] = matched_skills
+                job_dict['skill_matches'] = skill_matches
+                matched_jobs.append(job_dict)
+        
+        # Sort by match score (highest first)
+        matched_jobs.sort(key=lambda x: x['match_score'], reverse=True)
+        
+        return matched_jobs[:limit]
         
     except Exception as e:
         logger.error(f"Error in get_filtered_jobs_for_user: {e}")
         return []
-
+    finally:
+        cursor.close()
+        conn.close()
 
 def calculate_resume_job_match(job, user_skills):
     """Calculate skills-based match score"""
@@ -486,8 +495,12 @@ def dashboard():
 
         if job_list:
             best_match_score = max(job.get('match_score', 0) for job in job_list)
+        else:
+            best_match_score=0
     else:
+        job_list=[]
         matching_jobs_count=0
+        best_match_score=0
     return render_template(
         'dashboard.html',
         resumes=resumes,
@@ -584,46 +597,80 @@ def post_job():
 
 @app.route('/match_jobs/<resume_id>')
 def match_jobs(resume_id):
-    if 'user_id' not in session or session.get('user_type') != 'job_seeker':
+    if 'user_id' not in session:
         return redirect(url_for('login'))
-
+    
     conn = get_db_connection()
-    matches = []
-
-    if conn:
-        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cursor.execute("SELECT * FROM resumes WHERE resume_id=%s AND user_id=%s", (resume_id, session['user_id']))
+    if not conn:
+        flash("Database connection error", "danger")
+        return redirect(url_for('dashboard'))
+    
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    
+    try:
+        # Get the specific resume
+        cursor.execute("SELECT * FROM resumes WHERE resume_id = %s AND user_id = %s", 
+                      (resume_id, session['user_id']))
         resume = cursor.fetchone()
-
-        if resume:
-            parsed = json.loads(resume['parsed_text'] or '{}')
-            skills = parsed.get('skills', [])
-            filtered_jobs = get_filtered_jobs_for_user(skills)
-
-            for job in filtered_jobs[:50]:
-                score = job['match_score']
+        
+        if not resume:
+            flash("Resume not found", "danger")
+            return redirect(url_for('dashboard'))
+        
+        # Extract skills from resume
+        user_skills = []
+        if resume.get('parsed_text'):
+            try:
+                parsed = json.loads(resume['parsed_text'])
+                user_skills = parsed.get('skills', [])
+            except (json.JSONDecodeError, KeyError):
+                pass
+        
+        # Get ONLY personalized/matched jobs (not all jobs)
+        if user_skills:
+            jobs = get_filtered_jobs_for_user(user_skills, limit=100)
+            
+            # Further enhance matching using the job matcher
+            enhanced_jobs = []
+            for job in jobs:
                 try:
-                    cursor.execute(
-                        "INSERT INTO job_matches (user_id, resume_id, job_id, match_score, matched_at) VALUES (%s,%s,%s,%s,%s)",
-                        (session['user_id'], resume_id, job['job_id'], score, datetime.now())
+                    # Use the job matcher for detailed scoring
+                    match_result = job_matcher.calculate_match_score(
+                        resume['parsed_text'] if isinstance(resume['parsed_text'], str) else json.dumps(resume['parsed_text']),
+                        job.get('description', ''),
+                        job.get('requirements', '')
                     )
-                    conn.commit()
-                except psycopg2.IntegrityError:
-                    pass
+                    
+                    job_dict = dict(job)
+                    job_dict['detailed_match_score'] = match_result['final_score']
+                    job_dict['skills_breakdown'] = match_result
+                    enhanced_jobs.append(job_dict)
+                    
                 except Exception as e:
-                    logger.error(f"Error storing job match: {e}")
-
-                matches.append({
-                    "job": job,
-                    "match_score": score,
-                    "relevance_score": score
-                })
-
+                    # If detailed matching fails, keep the basic match score
+                    enhanced_jobs.append(dict(job))
+            
+            # Sort by detailed match score if available, otherwise by basic match score
+            enhanced_jobs.sort(key=lambda x: x.get('detailed_match_score', x.get('match_score', 0)), reverse=True)
+            jobs = enhanced_jobs
+        else:
+            jobs = []
+        
         cursor.close()
         conn.close()
-
-    return render_template('job_matches.html', matches=matches)
-
+        
+        return render_template(
+            'job_matches.html',
+            jobs=jobs,
+            resume=resume,
+            user_skills=user_skills,
+            total_matches=len(jobs)
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in match_jobs: {e}")
+        flash("Error processing job matches", "danger")
+        return redirect(url_for('dashboard'))
 @app.route('/search-jobs')
 def search_jobs():
     query = request.args.get('q', '').strip()
@@ -637,16 +684,17 @@ def search_jobs():
     if conn:
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         
-        # Base query for active jobs - exclude search links
+        # Base query for active jobs excluding manual jobs and irrelevant search links
         base_query = """
             SELECT * FROM jobs 
             WHERE status = 'active' AND is_active = TRUE
+            AND source != 'Manual'
             AND title NOT LIKE '%search%'
             AND (external_url IS NULL OR external_url NOT LIKE '%/jobs/search%')
         """
         params = []
         
-        # Add search filters
+        # Add search filters if provided
         if query:
             base_query += " AND (title ILIKE %s OR description ILIKE %s OR company ILIKE %s)"
             like_pattern = f"%{query}%"
@@ -680,12 +728,11 @@ def search_jobs():
         flash("Database connection error.", "danger")
     
     return render_template('job_search.html',
-                         jobs=jobs,
-                         total=total,
-                         query=query,
-                         location=location,
-                         source=source)
-
+                           jobs=jobs,
+                           total=total,
+                           query=query,
+                           location=location,
+                           source=source)
 
 @app.route('/admin/cleanup-closed-jobs', methods=['POST'])
 def cleanup_closed_jobs():
