@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Statistics - AI Job Matcher{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-chart-bar text-primary me-2"></i>User Statistics Dashboard</h2>
+                <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>Back to Admin
+                </a>
+            </div>
+            
+            <!-- Summary Cards -->
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body">
+                            <h5>Total Users</h5>
+                            <h3>{{ statistics|length }}</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-success text-white">
+                        <div class="card-body">
+                            <h5>Total Logins</h5>
+                            <h3>{{ statistics|sum(attribute='login_count') }}</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-info text-white">
+                        <div class="card-body">
+                            <h5>Total Resumes</h5>
+                            <h3>{{ statistics|sum(attribute='resume_count') }}</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Statistics Table -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">User Activity Statistics</h5>
+                </div>
+                <div class="card-body">
+                    {% if statistics %}
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>S.No</th>
+                                    <th>Logins</th>
+                                    <th>Number of Uploads</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for user in statistics %}
+                                <tr>
+                                    <td>{{ loop.index }}</td>
+                                    <td>{{ user.email }}</td>
+                                    <td>
+                                        <span class="badge bg-primary">{{ user.login_count }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-success">{{ user.resume_count }}</span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                        <h5>No user data available</h5>
+                        <p class="text-muted">Users will appear here once they register and use the system.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
