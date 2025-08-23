@@ -754,6 +754,23 @@ def cleanup_jobs():
         flash(f"Cleanup failed: {e}", "danger")
     
     return redirect(url_for('admin_dashboard'))
+@app.route('/admin/cleanup_manual_jobs', methods=['POST'])
+def cleanup_manual_jobs():
+    if 'user_id' not in session or session.get('user_type') != 'admin':
+        flash("Access denied.", "danger")
+        return redirect(url_for('login'))
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM jobs WHERE source = 'Manual'")
+        deleted_count = cursor.rowcount
+        conn.commit()
+        cursor.close()
+        conn.close()
+        flash(f"{deleted_count} manual jobs removed.", "success")
+    except Exception as e:
+        flash(f"Cleanup failed: {e}", "danger")
+    return redirect(url_for('admin_dashboard'))
 
 
 @app.route('/admin/dashboard')
