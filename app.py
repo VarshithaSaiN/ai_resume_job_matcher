@@ -532,69 +532,64 @@ def match_jobs(resume_id):
 
     return render_template('job_matches.html', matches=matches)
 
-@app.route('/search_jobs')
+@app.route('/search-jobs')
 def search_jobs():
-    try:
-        query = request.args.get('q', '')
-        location = request.args.get('location', '')
-        source = request.args.get('source', '')
-        
-        conn = get_db_connection()
-        jobs = []
-        total = 0
-        
-        if not conn:
-            logger.error("Failed to connect to database")
-            flash("Database connection error. Please try again later.", "danger")
-            return render_template('job_search.html', jobs=[], total=0, 
-                                   query=query, location=location, source=source)
-
+    query = request.args.get('q', '').strip()
+    location = request.args.get('location', '').strip() 
+    source = request.args.get('source', '').strip()
+    
+    conn = get_db_connection()
+    jobs = []
+    total = 0
+    
+    if conn:
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        base_query = "FROM jobs WHERE is_active=TRUE AND status='active' AND description NOT LIKE '%No longer accepting applications%' AND requirements NOT LIKE '%No longer accepting applications%'"
+        
+        # Base query for active jobs - exclude search links
+        base_query = """
+            SELECT * FROM jobs 
+            WHERE status = 'active' AND is_active = TRUE
+            AND title NOT LIKE '%search%'
+            AND (external_url IS NULL OR external_url NOT LIKE '%/jobs/search%')
+        """
         params = []
-
-        if source:
-            base_query += " AND source=%s"
-            params.append(source)
-        if location:
-            base_query += " AND location LIKE %s"
-            params.append(f"%{location}%")
+        
+        # Add search filters
         if query:
-            base_query += " AND (title LIKE %s OR description LIKE %s OR company LIKE %s)"
-            q_param = f"%{query}%"
-            params.extend([q_param]*3)
-
-        # Get total count
-        count_query = f"SELECT COUNT(*) as count {base_query}"
-        if params:
-            cursor.execute(count_query, tuple(params))
-        else:
-            cursor.execute(count_query)
-        result = cursor.fetchone()
-        total = result['count'] if result else 0
-
-        # Get jobs
-        select_query = f"SELECT * {base_query} ORDER BY created_at DESC LIMIT 50"
-        if params:
-            cursor.execute(select_query, tuple(params))
-        else:
-            cursor.execute(select_query)
-        jobs = cursor.fetchall()
-
-        cursor.close()
-        conn.close()
-
-    except Exception as e:
-        logger.error(f"Search jobs error: {e}")
-        flash("An unexpected error occurred. Please try again.", "danger")
-        # Always return a valid template even on error
-        return render_template('job_search.html', jobs=[], total=0, 
-                              query=query if 'query' in locals() else "", 
-                              location=location if 'location' in locals() else "", 
-                              source=source if 'source' in locals() else "")
-
-    return render_template('job_search.html', jobs=jobs, total=total, 
-                          query=query, location=location, source=source)
+            base_query += " AND (title ILIKE %s OR description ILIKE %s OR company ILIKE %s)"
+            like_pattern = f"%{query}%"
+            params.extend([like_pattern, like_pattern, like_pattern])
+            
+        if location:
+            base_query += " AND location ILIKE %s" 
+            params.append(f"%{location}%")
+            
+        if source:
+            base_query += " AND source = %s"
+            params.append(source)
+            
+        base_query += " ORDER BY created_at DESC LIMIT 50"
+        
+        try:
+            cursor.execute(base_query, params)
+            jobs = cursor.fetchall()
+            total = len(jobs)
+            logger.info(f"Found {total} jobs for query: '{query}'")
+        except Exception as e:
+            logger.error(f"Error searching jobs: {e}")
+            flash("Error searching jobs. Please try again.", "danger")
+        finally:
+            cursor.close()
+            conn.close()
+    else:
+        flash("Database connection error.", "danger")
+    
+    return render_template('job_search.html',
+                         jobs=jobs,
+                         total=total, 
+                         query=query,
+                         location=location,
+                         source=source)
 
 
 @app.route('/admin/cleanup-closed-jobs', methods=['POST'])
