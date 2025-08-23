@@ -734,7 +734,7 @@ def cleanup_jobs():
         
         cursor.execute("""
             DELETE FROM jobs 
-            WHERE status = 'closed' OR is_active = FALSE
+            WHERE source='Manual' OR status = 'closed' OR is_active = FALSE
             OR description LIKE '%No longer accepting applications%'
             OR description LIKE '%Position filled%'
             OR description LIKE '%Applications closed%'
@@ -749,7 +749,7 @@ def cleanup_jobs():
         cursor.close()
         conn.close()
         
-        flash(f"{deleted_count} old/closed jobs cleaned up.", "success")
+        flash(f"{deleted_count} manual/old/closed jobs cleaned up.", "success")
     except Exception as e:
         flash(f"Cleanup failed: {e}", "danger")
     
