@@ -219,38 +219,34 @@ def search_jobs_personalized():
     if 'user_id' not in session:
         return redirect(url_for('login'))
 
-    resume_id = request.args.get('resume_id', None)
-    search_query = request.args.get('q', '').strip()
-    location_filter = request.args.get('location', '').strip()
-    source_filter = request.args.get('source', 'LinkedIn').strip()
-
+    # Load latest resume for this user
     user_skills = []
     conn = get_db_connection()
     if conn:
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-
-        if resume_id:
-            cursor.execute("SELECT * FROM resumes WHERE resume_id=%s AND user_id=%s", (resume_id, session['user_id']))
-        else:
-            cursor.execute("SELECT * FROM resumes WHERE user_id=%s ORDER BY created_at DESC LIMIT 1", (session['user_id'],))
+        cursor.execute(
+            "SELECT parsed_text FROM resumes WHERE user_id=%s ORDER BY created_at DESC LIMIT 1",
+            (session['user_id'],)
+        )
         resume = cursor.fetchone()
-        if resume and resume.get('parsed_text'):
-            user_skills = json.loads(resume['parsed_text']).get('skills', [])
         cursor.close()
         conn.close()
 
-    filtered_jobs = get_filtered_jobs_for_user(user_skills, search_query, location_filter, source_filter)
-    jobs = filtered_jobs[:50]
-    total_jobs = len(filtered_jobs)
+        if resume and resume.get('parsed_text'):
+            try:
+                user_skills = json.loads(resume['parsed_text']).get('skills', [])
+            except json.JSONDecodeError:
+                user_skills = []
+
+    # Now fetch personalized matches based only on skills
+    jobs = get_filtered_jobs_for_user(user_skills, limit=50)
+    total_jobs = len(jobs)
 
     return render_template(
         "job_search_personalized.html",
         jobs=jobs,
         total_jobs=total_jobs,
-        user_skills=user_skills,
-        search_query=search_query,
-        location_filter=location_filter,
-        source_filter=source_filter
+        user_skills=user_skills
     )
 
 def calculate_search_relevance(job, search_query):
