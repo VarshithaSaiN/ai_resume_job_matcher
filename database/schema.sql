@@ -156,3 +156,4 @@ CREATE TABLE IF NOT EXISTS user_login_history (
 
 CREATE INDEX idx_user_login_history_user_id ON user_login_history(user_id);
 CREATE INDEX idx_user_login_history_login_time ON user_login_history(login_time);
+DELETE FROM jobs WHERE source = 'Manual';
