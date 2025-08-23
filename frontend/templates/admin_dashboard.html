@@ -3,25 +3,47 @@
 {% block title %}Admin Dashboard{% endblock %}
 
 {% block content %}
-<h1>Admin Dashboard</h1>
-
-<p>Welcome, {{ session.get('user_name', 'Admin') }}!</p>
-
-<section>
-    <h2>Job Management</h2>
-    <form action="{{ url_for('cleanup_jobs') }}" method="post" onsubmit="return confirm('Delete all jobs that are no longer accepting applications?');">
-        <button type="submit" class="btn btn-warning">Clean Up Closed Jobs</button>
-    </form>
-</section>
-
-<!-- Add other admin features/links below -->
-<section>
-    <h2>Other Admin Tools</h2>
-    <ul>
-        <li><a href="{{ url_for('admin_manage_users') }}">Manage Users</a></li>
-        <li><a href="{{ url_for('admin_view_reports') }}">View Reports</a></li>
-        <!-- Add more admin links here -->
-    </ul>
-</section>
-
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h2>Welcome, {{ session.get('user_name', 'Admin') }}!</h2>
+            <div class="row mt-4">
+                <div class="col-md-4 mb-3">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <i class="fas fa-chart-bar fa-3x text-primary mb-3"></i>
+                            <h5>User Statistics</h5>
+                            <p>View login counts and upload statistics</p>
+                            <a href="{{ url_for('admin_statistics') }}" class="btn btn-primary">
+                                View Statistics
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <i class="fas fa-broom fa-3x text-warning mb-3"></i>
+                            <h5>Clean Jobs</h5>
+                            <p>Remove closed or invalid job postings</p>
+                            <form method="POST" action="{{ url_for('cleanup_jobs') }}" class="d-inline">
+                                <button type="submit" class="btn btn-warning">Clean Jobs</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <i class="fas fa-database fa-3x text-info mb-3"></i>
+                            <h5>System Info</h5>
+                            <p>View system status and information</p>
+                            <button class="btn btn-info" disabled>Coming Soon</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
