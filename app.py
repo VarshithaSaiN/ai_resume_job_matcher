@@ -135,6 +135,30 @@ def track_user_login(user_id):
         finally:
             cursor.close()
             conn.close()
+@app.route('/test-jobs')
+def test_jobs():
+    conn = get_db_connection()
+    if conn:
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cursor.execute("SELECT COUNT(*) as count FROM jobs WHERE status='active' AND is_active=TRUE")
+        job_count = cursor.fetchone()['count']
+        
+        cursor.execute("SELECT title, company, location FROM jobs WHERE status='active' AND is_active=TRUE LIMIT 10")
+        jobs = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        html = f"<h2>Database Test Results</h2>"
+        html += f"<p><strong>Total active jobs:</strong> {job_count}</p>"
+        html += f"<h3>Sample Jobs:</h3><ul>"
+        for job in jobs:
+            html += f"<li>{job['title']} at {job['company']} - {job['location']}</li>"
+        html += "</ul>"
+        html += f"<p><a href='/search-jobs'>Test Job Search</a></p>"
+        html += f"<p><a href='/jobs/search-personalized'>Test Personalized Search</a></p>"
+        return html
+    
+    return "Database connection failed"
 
 @app.route('/admin/statistics')
 def admin_statistics():
@@ -261,10 +285,9 @@ def calculate_search_relevance(job, search_query):
             relevance_score += 15
 
     return min(relevance_score, 100)
-
-def get_filtered_jobs_for_user(user_skills, search_query="", location_filter="", source_filter="LinkedIn"):
+def get_filtered_jobs_for_user(user_skills, search_query="", location_filter="", source_filter=""):
     """
-    Unified function to get filtered jobs - UPDATED to exclude closed applications
+    Get filtered jobs for user - FIXED VERSION
     """
     conn = get_db_connection()
     if not conn:
@@ -273,35 +296,33 @@ def get_filtered_jobs_for_user(user_skills, search_query="", location_filter="",
     try:
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         base_query = """
-            FROM jobs
+            SELECT * FROM jobs
             WHERE status = 'active'
             AND is_active = TRUE
-            AND external_url NOT LIKE '%/jobs/search%'
-            AND external_url NOT LIKE '%keywords=%'
-            AND description NOT LIKE '%No longer accepting applications%'
-            AND requirements NOT LIKE '%No longer accepting applications%'
-            AND title NOT LIKE '%No longer accepting applications%'
-            """
+            AND (external_url IS NULL OR external_url NOT LIKE '%/jobs/search%')
+        """
         params = []
 
-        if source_filter:
+        # Remove the overly restrictive source filter
+        if source_filter and source_filter != "":
             base_query += " AND source = %s"
             params.append(source_filter)
 
         if location_filter:
-            base_query += " AND location LIKE %s"
+            base_query += " AND location ILIKE %s"
             params.append(f"%{location_filter}%")
 
         if search_query:
-            base_query += " AND (title LIKE %s OR description LIKE %s OR company LIKE %s)"
+            base_query += " AND (title ILIKE %s OR description ILIKE %s OR company ILIKE %s)"
             like_pattern = f"%{search_query}%"
             params.extend([like_pattern]*3)
 
-        sql = f"SELECT * {base_query} ORDER BY created_at DESC LIMIT 100"
+        base_query += " ORDER BY created_at DESC LIMIT 100"
+        
         if params:
-            cursor.execute(sql, tuple(params))
+            cursor.execute(base_query, params)
         else:
-            cursor.execute(sql)
+            cursor.execute(base_query)
 
         all_jobs = cursor.fetchall()
         cursor.close()
@@ -309,23 +330,26 @@ def get_filtered_jobs_for_user(user_skills, search_query="", location_filter="",
 
         filtered_jobs = []
         for job in all_jobs:
-            if not is_job_accepting_applications(job):
-                continue
+            # Calculate match score
+            match_score = calculate_resume_job_match(job, user_skills) if user_skills else 50
+            
+            # Add all jobs, not just ones with high scores
+            job_dict = dict(job)
+            job_dict['combined_score'] = match_score
+            job_dict['match_score'] = match_score
+            job_dict['search_score'] = match_score
+            job_dict['resume_score'] = match_score
+            
+            filtered_jobs.append(job_dict)
 
-            match_score = calculate_resume_job_match(job, user_skills) if user_skills else 0
-            job['combined_score'] = match_score
-            job['match_score'] = match_score
-            job['search_score'] = match_score
-            job['resume_score'] = match_score
-
-            if match_score > 0:
-                filtered_jobs.append(job)
-
+        # Sort by match score
         filtered_jobs.sort(key=lambda x: x['combined_score'], reverse=True)
         return filtered_jobs
+        
     except Exception as e:
         logger.error(f"Error in get_filtered_jobs_for_user: {e}")
         return []
+
 
 def calculate_resume_job_match(job, user_skills):
     """Calculate skills-based match score"""
@@ -660,6 +684,7 @@ def search_jobs():
                          query=query,
                          location=location,
                          source=source)
+
 
 @app.route('/admin/cleanup-closed-jobs', methods=['POST'])
 def cleanup_closed_jobs():
