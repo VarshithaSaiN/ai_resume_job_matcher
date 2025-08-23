@@ -119,6 +119,71 @@ def is_job_accepting_applications(job):
         if phrase in text_to_check:
             return False
     return True
+def track_user_login(user_id):
+    """Track user login for statistics"""
+    conn = get_db_connection()
+    if conn:
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                INSERT INTO user_login_history (user_id, login_time)
+                VALUES (%s, %s)
+            """, (user_id, datetime.now()))
+            conn.commit()
+        except Exception as e:
+            logger.error(f"Error tracking login: {e}")
+        finally:
+            cursor.close()
+            conn.close()
+
+@app.route('/admin/statistics')
+def admin_statistics():
+    if 'user_id' not in session or session.get('user_type') != 'admin':
+        flash("Access denied: Admins only.", "danger")
+        return redirect(url_for('login'))
+    
+    conn = get_db_connection()
+    statistics = []
+    
+    if conn:
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        
+        try:
+            # Get user statistics with login count and resume count
+            cursor.execute("""
+                SELECT 
+                    u.user_id,
+                    u.email,
+                    u.first_name,
+                    u.last_name,
+                    u.created_at as registration_date,
+                    COALESCE(login_stats.login_count, 0) as login_count,
+                    COALESCE(resume_stats.resume_count, 0) as resume_count
+                FROM users u
+                LEFT JOIN (
+                    SELECT user_id, COUNT(*) as login_count
+                    FROM user_login_history 
+                    GROUP BY user_id
+                ) login_stats ON u.user_id = login_stats.user_id
+                LEFT JOIN (
+                    SELECT user_id, COUNT(*) as resume_count
+                    FROM resumes 
+                    GROUP BY user_id
+                ) resume_stats ON u.user_id = resume_stats.user_id
+                WHERE u.user_type != 'admin'
+                ORDER BY u.created_at DESC
+            """)
+            
+            statistics = cursor.fetchall()
+            
+        except Exception as e:
+            logger.error(f"Error fetching admin statistics: {e}")
+            flash(f"Error fetching statistics: {e}", "danger")
+        finally:
+            cursor.close()
+            conn.close()
+    
+    return render_template('admin_statistics.html', statistics=statistics)
 
 @app.route('/')
 def index():
@@ -311,29 +376,31 @@ def login():
     if request.method == 'POST':
         email = request.form['email']
         password = request.form['password']
-
-        logger.info(f"Login attempt with email: {email}")
-
+        
         conn = get_db_connection()
         if conn:
             cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
             user = cursor.fetchone()
             conn.close()
-
+            
             if not user:
                 flash("Email not found. Please register first.", "danger")
             elif check_password_hash(user['password'], password):
                 session['user_id'] = user['user_id']
                 session['user_name'] = user['first_name']
                 session['user_type'] = user['user_type']
+                
+                # Track login for statistics - NEW LINE
+                track_user_login(user['user_id'])
+                
                 flash("Login successful!", "success")
                 return redirect(url_for('dashboard'))
             else:
                 flash("Incorrect password.", "danger")
         else:
             flash("Database connection error.", "danger")
-
+    
     return render_template('login.html')
 
 @app.route('/logout')
