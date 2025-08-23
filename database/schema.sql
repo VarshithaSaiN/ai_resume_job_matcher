@@ -147,3 +147,12 @@ OR LOWER(title) = 'no longer accepting applications';
 
 SELECT * FROM jobs WHERE status = 'active' AND is_active = TRUE
 AND description NOT LIKE '%No longer accepting applications%';
+-- Create login tracking table
+CREATE TABLE IF NOT EXISTS user_login_history (
+    login_id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(user_id) ON DELETE CASCADE,
+    login_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_user_login_history_user_id ON user_login_history(user_id);
+CREATE INDEX idx_user_login_history_login_time ON user_login_history(login_time);
