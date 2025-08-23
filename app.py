@@ -738,35 +738,6 @@ def admin_dashboard():
         flash("Access denied: Admins only.", "danger")
         return redirect(url_for('login'))
     return render_template('admin_dashboard.html')
-
-@app.route('/admin/cleanup_jobs', methods=['POST'])
-def cleanup_jobs():
-    if 'user_id' not in session or session.get('user_type') != 'admin':
-        flash("Access denied.", "danger")
-        return redirect(url_for('login'))
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("""
-            DELETE FROM jobs
-            WHERE status = 'closed' OR is_active = FALSE
-            OR description LIKE '%No longer accepting applications%'
-            OR description LIKE '%Position filled%'
-            OR description LIKE '%Applications closed%'
-            OR description LIKE '%Hiring closed%'
-            OR description LIKE '%Position closed%'
-            OR description LIKE '%Job closed%'
-            OR description LIKE '%Hiring complete%'
-        """)
-        deleted_count = cursor.rowcount
-        conn.commit()
-        cursor.close()
-        conn.close()
-        flash(f"{deleted_count} old closed jobs cleaned up.", "success")
-    except Exception as e:
-        flash(f"Cleanup failed: {e}", "danger")
-    return redirect(url_for('admin_dashboard'))
-
 @app.route('/delete_resume/<int:resume_id>', methods=['POST'])
 def delete_resume(resume_id):
     if 'user_id' not in session:
