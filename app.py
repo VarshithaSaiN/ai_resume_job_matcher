@@ -583,42 +583,54 @@ def match_jobs(resume_id):
     if 'user_id' not in session or session.get('user_type') != 'job_seeker':
         return redirect(url_for('login'))
 
-    conn = get_db_connection()
     matches = []
-
+    conn = get_db_connection()
     if conn:
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cursor.execute("SELECT * FROM resumes WHERE resume_id=%s AND user_id=%s", (resume_id, session['user_id']))
+        # Load the resume
+        cursor.execute(
+            "SELECT parsed_text FROM resumes WHERE resume_id=%s AND user_id=%s",
+            (resume_id, session['user_id'])
+        )
         resume = cursor.fetchone()
+        if resume and resume.get('parsed_text'):
+            try:
+                skills = json.loads(resume['parsed_text']).get('skills', [])
+            except json.JSONDecodeError:
+                skills = []
 
-        if resume:
-            parsed = json.loads(resume['parsed_text'] or '{}')
-            skills = parsed.get('skills', [])
-            filtered_jobs = get_filtered_jobs_for_user(skills)
+            # Basic matches by skill
+            basic_jobs = get_filtered_jobs_for_user(skills, limit=100)
 
-            for job in filtered_jobs[:50]:
-                score = job['match_score']
-                try:
-                    cursor.execute(
-                        "INSERT INTO job_matches (user_id, resume_id, job_id, match_score, matched_at) VALUES (%s,%s,%s,%s,%s)",
-                        (session['user_id'], resume_id, job['job_id'], score, datetime.now())
-                    )
-                    conn.commit()
-                except psycopg2.IntegrityError:
-                    pass
-                except Exception as e:
-                    logger.error(f"Error storing job match: {e}")
+            # Enhance with detailed scoring
+            for job in basic_jobs:
+                detailed_score = job.get('match_score', 0)
+                if job_matcher:
+                    try:
+                        result = job_matcher.calculate_match_score(
+                            resume['parsed_text'],
+                            job.get('description', ''),
+                            job.get('requirements', '')
+                        )
+                        detailed_score = result.get('final_score', detailed_score)
+                    except Exception as e:
+                        logger.error(f"JobMatcher error: {e}")
 
                 matches.append({
                     "job": job,
-                    "match_score": score,
-                    "relevance_score": score
+                    "match_score": job['match_score'],
+                    "detailed_match_score": detailed_score,
+                    "skills_breakdown": result if 'result' in locals() else {}
                 })
 
         cursor.close()
         conn.close()
 
+    # Sort by detailed score descending
+    matches.sort(key=lambda x: x['detailed_match_score'], reverse=True)
+
     return render_template('job_matches.html', matches=matches)
+
 @app.route('/search-jobs')
 def search_jobs():
     query = request.args.get('q', '').strip()
