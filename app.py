@@ -284,7 +284,7 @@ def calculate_search_relevance(job, search_query):
     return min(relevance_score, 100)
 def get_filtered_jobs_for_user(user_skills, search_query="", location_filter="", source_filter=""):
     """
-    Get filtered jobs for user - FIXED VERSION
+    Get filtered jobs for user - UPDATED VERSION with Manual job exclusion
     """
     conn = get_db_connection()
     if not conn:
@@ -296,11 +296,14 @@ def get_filtered_jobs_for_user(user_skills, search_query="", location_filter="",
             SELECT * FROM jobs
             WHERE status = 'active'
             AND is_active = TRUE
+            AND source != 'Manual'
+            AND description IS NOT NULL
+            AND requirements IS NOT NULL
             AND (external_url IS NULL OR external_url NOT LIKE '%/jobs/search%')
         """
         params = []
 
-        # Remove the overly restrictive source filter
+        # Apply source filter if provided
         if source_filter and source_filter != "":
             base_query += " AND source = %s"
             params.append(source_filter)
@@ -326,21 +329,46 @@ def get_filtered_jobs_for_user(user_skills, search_query="", location_filter="",
         conn.close()
 
         filtered_jobs = []
-        for job in all_jobs:
-            # Calculate match score
-            match_score = calculate_resume_job_match(job, user_skills) if user_skills else 50
-            
-            # Add all jobs, not just ones with high scores
-            job_dict = dict(job)
-            job_dict['combined_score'] = match_score
-            job_dict['match_score'] = match_score
-            job_dict['search_score'] = match_score
-            job_dict['resume_score'] = match_score
-            
-            filtered_jobs.append(job_dict)
+        
+        # If no user skills provided, return all jobs with basic score
+        if not user_skills:
+            for job in all_jobs:
+                job_dict = dict(job)
+                job_dict['match_score'] = 0
+                job_dict['matched_skills'] = []
+                job_dict['skill_matches'] = 0
+                filtered_jobs.append(job_dict)
+            return filtered_jobs
 
-        # Sort by match score
-        filtered_jobs.sort(key=lambda x: x['combined_score'], reverse=True)
+        # Process jobs with skill matching
+        user_skills_lower = [skill.lower() for skill in user_skills]
+        
+        for job in all_jobs:
+            # Create combined text for skill matching
+            job_text = f"{job.get('title', '')} {job.get('description', '')} {job.get('requirements', '')}".lower()
+            
+            # Find matching skills
+            matched_skills = []
+            for skill in user_skills_lower:
+                if skill in job_text:
+                    matched_skills.append(skill)
+            
+            # Only include jobs with at least 1 skill match for personalized results
+            if matched_skills:
+                match_score = (len(matched_skills) / len(user_skills_lower)) * 100
+                
+                job_dict = dict(job)
+                job_dict['match_score'] = round(match_score, 1)
+                job_dict['matched_skills'] = matched_skills
+                job_dict['skill_matches'] = len(matched_skills)
+                job_dict['combined_score'] = match_score
+                job_dict['search_score'] = match_score
+                job_dict['resume_score'] = match_score
+                
+                filtered_jobs.append(job_dict)
+
+        # Sort by match score (highest first)
+        filtered_jobs.sort(key=lambda x: x['match_score'], reverse=True)
         return filtered_jobs
         
     except Exception as e:
