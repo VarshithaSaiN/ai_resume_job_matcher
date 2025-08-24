@@ -62,12 +62,6 @@
                 </a>
               </li>
               {% endif %}
-              {% if session.get('user_id') %}
-              <li class="nav-item">
-                  <a class="nav-link" href="{{ url_for('search_jobs_personalized') }}">Personalized Jobs</a>
-              </li>
-              {% endif %}
-
               <li class="nav-item dropdown">
                 <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                   <i class="fas fa-user me-1"></i> {{ session.get('user_name', 'User') }}
