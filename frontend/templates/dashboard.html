@@ -50,10 +50,11 @@
                         <i class="fas fa-cloud-upload-alt me-2"></i>Upload New Resume
                     </a>
                     {% for resume in resumes %}
-                    <a href="{{ url_for('search_jobs_personalized', resume_id=resume.resume_id) }}" class="btn btn-primary btn-sm">
-                        <i class="fas fa-search me-1"></i>Find Jobs
+                    <a href="{{ url_for('match_jobs', resume_id=resume.resume_id) }}" class="btn btn-primary btn-sm">
+                          <i class="fas fa-search me-1"></i>Find Jobs
                     </a>
                     {% endfor %}
+
                 </div>
             </div>
         </div>
@@ -104,7 +105,7 @@
                 </h5>
                 {% if resumes %}
                     <p class="card-text">Get personalized job recommendations based on your uploaded resume.</p>
-                    <a href="{{ url_for('search_jobs_personalized') }}" class="btn btn-primary">
+                    <a href="{{ url_for('personalized_search_redirect') }}" class="btn btn-primary">
                         <i class="fas fa-bullseye me-2"></i>View Personalized Jobs
                     </a>
                     <div class="mt-2">
