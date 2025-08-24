@@ -606,88 +606,47 @@ def post_job():
 
     return render_template('post_job.html')
 
-@app.route('/match_jobs/<int:resume_id>')
+@app.route('/match_jobs/<resume_id>')
 def match_jobs(resume_id):
-    if 'user_id' not in session:
+    if 'user_id' not in session or session.get('user_type') != 'job_seeker':
         return redirect(url_for('login'))
-
-    # Get search parameters from URL
-    search_query = request.args.get('q', '').strip()
-    location_filter = request.args.get('location', '').strip()
 
     conn = get_db_connection()
     matches = []
 
     if conn:
-        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cursor.execute(
-            "SELECT parsed_text FROM resumes WHERE resume_id=%s AND user_id=%s", 
-            (resume_id, session['user_id'])
-        )
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM resumes WHERE resume_id=%s AND user_id=%s", (resume_id, session['user_id']))
         resume = cursor.fetchone()
 
-        if resume and resume.get('parsed_text'):
-            try:
-                skills = json.loads(resume['parsed_text']).get('skills', [])
-            except json.JSONDecodeError:
-                skills = []
+        if resume:
+            parsed = json.loads(resume['parsed_text'] or '{}')
+            skills = parsed.get('skills', [])
+            filtered_jobs = get_filtered_jobs_for_user(skills)
 
-            # Get basic personalized matches (already excludes Manual jobs)
-            basic_jobs = get_filtered_jobs_for_user(skills, search_query, location_filter)
-
-            # Process and enhance jobs with detailed scoring
-            for job in basic_jobs:
-                # Skip manual jobs (extra safety check)
-                if job.get('source') == 'Manual':
-                    continue
-
-                # Calculate detailed match score using JobMatcher if available
-                detailed_score = job.get('match_score', 0)
-                skills_breakdown = {}
-                
-                if job_matcher:
-                    try:
-                        match_result = job_matcher.calculate_match_score(
-                            resume['parsed_text'],
-                            job.get('description', ''),
-                            job.get('requirements', '')
-                        )
-                        detailed_score = match_result.get('final_score', detailed_score)
-                        skills_breakdown = match_result
-                    except Exception as e:
-                        logger.error(f"JobMatcher error: {e}")
-
-                # Store job match in database for tracking
+            for job in filtered_jobs[:50]:
+                score = job['match_score']
                 try:
                     cursor.execute(
-                        "INSERT INTO job_matches (user_id, resume_id, job_id, match_score, matched_at) VALUES (%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
-                        (session['user_id'], resume_id, job['job_id'], detailed_score, datetime.now())
+                        "INSERT INTO job_matches (user_id, resume_id, job_id, match_score, matched_at) VALUES (%s,%s,%s,%s,%s)",
+                        (session['user_id'], resume_id, job['job_id'], score, datetime.now())
                     )
                     conn.commit()
+                except mysql.connector.IntegrityError:
+                    pass
                 except Exception as e:
                     logger.error(f"Error storing job match: {e}")
 
-                # Add to matches list
                 matches.append({
                     "job": job,
-                    "match_score": job.get('match_score', 0),
-                    "detailed_match_score": detailed_score,
-                    "skills_breakdown": skills_breakdown,
-                    "matched_skills": job.get('matched_skills', [])
+                    "match_score": score,
+                    "relevance_score": score
                 })
 
         cursor.close()
         conn.close()
 
-    # Sort by detailed match score (highest first)
-    matches.sort(key=lambda x: x.get('detailed_match_score', 0), reverse=True)
-
-    return render_template('job_matches.html', 
-                         matches=matches,
-                         resume_id=resume_id,
-                         search_query=search_query,
-                         location_filter=location_filter,
-                         total_matches=len(matches))
+    return render_template('job_matches.html', matches=matches)
 
 @app.route('/search-jobs')
 def search_jobs():
