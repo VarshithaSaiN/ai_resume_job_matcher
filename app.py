@@ -667,43 +667,62 @@ def match_jobs(resume_id):
 
 @app.route('/search-jobs')
 def search_jobs():
+    # Get query parameters
     query = request.args.get('q', '').strip()
     location = request.args.get('location', '').strip()
     source = request.args.get('source', '').strip()
-    
+
+    # Determine the logged-in user’s latest resume ID (for personalized search link)
+    user_resume_id = None
+    if 'user_id' in session:
+        conn = get_db_connection()
+        if conn:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cur.execute(
+                "SELECT resume_id FROM resumes WHERE user_id=%s ORDER BY created_at DESC LIMIT 1",
+                (session['user_id'],)
+            )
+            row = cur.fetchone()
+            if row:
+                user_resume_id = row['resume_id']
+            cur.close()
+            conn.close()
+
+    # Search for jobs
     conn = get_db_connection()
     jobs = []
     total = 0
-    
     if conn:
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        
-        # Base query for active jobs - exclude search links
+
         base_query = """
-            SELECT * FROM jobs 
-            WHERE status = 'active' AND is_active = TRUE
-            AND source != 'Manual'
-            AND title NOT LIKE '%search%'
-            AND (external_url IS NULL OR external_url NOT LIKE '%/jobs/search%')
+            SELECT * FROM jobs
+            WHERE status='active'
+              AND is_active=TRUE
+              AND source!='Manual'
+              AND title NOT LIKE '%%search%%'
+              AND (external_url IS NULL OR external_url NOT LIKE '%%/jobs/search%%')
         """
         params = []
-        
-        # Add search filters
+
+        # Apply keyword filter
         if query:
             base_query += " AND (title ILIKE %s OR description ILIKE %s OR company ILIKE %s)"
             like_pattern = f"%{query}%"
             params.extend([like_pattern, like_pattern, like_pattern])
-            
+
+        # Apply location filter
         if location:
             base_query += " AND location ILIKE %s"
             params.append(f"%{location}%")
-            
+
+        # Apply source filter
         if source:
             base_query += " AND source = %s"
             params.append(source)
-            
+
         base_query += " ORDER BY created_at DESC LIMIT 50"
-        
+
         try:
             if params:
                 cursor.execute(base_query, params)
@@ -711,23 +730,25 @@ def search_jobs():
                 cursor.execute(base_query)
             jobs = cursor.fetchall()
             total = len(jobs)
-            logger.info(f"Found {total} jobs for query: '{query}'")
+            logger.info(f"Found {total} jobs for query '{query}'")
         except Exception as e:
             logger.error(f"Error searching jobs: {e}")
-            flash("Error searching jobs. Please try again.", "danger")
+            flash("An error occurred while searching for jobs. Please try again.", "danger")
         finally:
             cursor.close()
             conn.close()
     else:
         flash("Database connection error.", "danger")
-    
-    return render_template('job_search.html',
-                         jobs=jobs,
-                         total=total,
-                         query=query,
-                         location=location,
-                         source=source)
 
+    return render_template(
+        'job_search.html',
+        jobs=jobs,
+        total=total,
+        query=query,
+        location=location,
+        source=source,
+        user_resume_id=user_resume_id  # so template can link to match_jobs(resume_id)
+    )
 
 @app.route('/admin/cleanup-closed-jobs', methods=['POST'])
 def cleanup_closed_jobs():
