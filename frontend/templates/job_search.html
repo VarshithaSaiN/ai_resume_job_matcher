@@ -36,15 +36,16 @@
     {% if session.user_id %}
     <div class="row mb-3">
         <div class="col-12">
-            <!-- Update this link to point to match_jobs with the user's latest resume -->
             <div class="alert alert-info">
                 <i class="fas fa-user"></i> Want better results? Try 
-                <a href="{{ url_for('job_search_personalized') }}" class="alert-link">Personalized Search</a> 
-                based on your resume!
+                <a href="{{ url_for('personalized_search_redirect') }}" class="alert-link">
+                    Personalized Search
+                </a> based on your resume!
             </div>
         </div>
     </div>
     {% endif %}
+
 
     <div class="row mb-3">
         <div class="col-12">
