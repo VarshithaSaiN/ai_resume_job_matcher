@@ -2,7 +2,9 @@
 
 {% block title %}Job Matches - AI Job Matcher{% endblock %}
 <!-- Add this search form at the top of your job matches page -->
-<div class="container mt-4">
+
+{% block content %}
+<div class="container py-4">
     <div class="row justify-content-center">
         <div class="col-md-8">
             <form method="GET" action="{{ url_for('match_jobs', resume_id=resume_id) }}">
@@ -20,9 +22,6 @@
             </form>
         </div>
     </div>
-</div>
-{% block content %}
-<div class="container py-4">
     <div class="row">
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-4">
