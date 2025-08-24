@@ -5,21 +5,31 @@
 
 {% block content %}
 <div class="container py-4">
-    <div class="row justify-content-center">
-        <div class="col-md-8">
-            <form method="GET" action="{{ url_for('match_jobs', resume_id=resume_id) }}">
-                <div class="input-group">
-                    <input type="text" name="q" class="form-control" 
-                           placeholder="e.g., Python Developer" 
-                           value="{{ request.args.get('q', '') }}">
-                    <input type="text" name="location" class="form-control" 
-                           placeholder="e.g., Remote, New York" 
-                           value="{{ request.args.get('location', '') }}">
-                    <button class="btn btn-primary" type="submit">
-                        <i class="fas fa-search"></i> Search
-                    </button>
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h4><i class="fas fa-search me-2"></i>Search Jobs</h4>
+                    <form method="GET" class="row g-3">
+                        <div class="col-md-4">
+                            <label for="q" class="form-label">Keywords</label>
+                            <input type="text" class="form-control" id="q" name="q" 
+                                   value="{{ query }}" placeholder="e.g., Python Developer">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="location" class="form-label">Location</label>
+                            <input type="text" class="form-control" id="location" name="location" 
+                                   value="{{ location }}" placeholder="e.g., Remote, New York">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">&nbsp;</label>
+                            <button type="submit" class="btn btn-primary d-block w-100">
+                                <i class="fas fa-search me-2"></i>Search
+                            </button>
+                        </div>
+                    </form>
                 </div>
-            </form>
+            </div>
         </div>
     </div>
     <div class="row">
