@@ -215,40 +215,6 @@ def index():
     return render_template('index.html')
 
 @app.route('/jobs/search-personalized')
-def search_jobs_personalized():
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-
-    # Load latest resume for this user
-    user_skills = []
-    conn = get_db_connection()
-    if conn:
-        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cursor.execute(
-            "SELECT parsed_text FROM resumes WHERE user_id=%s ORDER BY created_at DESC LIMIT 1",
-            (session['user_id'],)
-        )
-        resume = cursor.fetchone()
-        cursor.close()
-        conn.close()
-
-        if resume and resume.get('parsed_text'):
-            try:
-                user_skills = json.loads(resume['parsed_text']).get('skills', [])
-            except json.JSONDecodeError:
-                user_skills = []
-
-    # Now fetch personalized matches based only on skills
-    jobs = get_filtered_jobs_for_user(user_skills, limit=50)
-    total_jobs = len(jobs)
-
-    return render_template(
-        "job_search_personalized.html",
-        jobs=jobs,
-        total_jobs=total_jobs,
-        user_skills=user_skills
-    )
-
 def calculate_search_relevance(job, search_query):
     """Calculate relevance score"""
     if not search_query:
@@ -606,47 +572,78 @@ def post_job():
 
     return render_template('post_job.html')
 
-@app.route('/match_jobs/<resume_id>')
+@app.route('/match_jobs/<int:resume_id>')
 def match_jobs(resume_id):
-    if 'user_id' not in session or session.get('user_type') != 'job_seeker':
+    if 'user_id' not in session:
         return redirect(url_for('login'))
+
+    # read search filters
+    search_query = request.args.get('q', '').strip()
+    location_filter = request.args.get('location', '').strip()
 
     conn = get_db_connection()
     matches = []
 
     if conn:
-        cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM resumes WHERE resume_id=%s AND user_id=%s", (resume_id, session['user_id']))
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cursor.execute("SELECT parsed_text FROM resumes WHERE resume_id=%s AND user_id=%s",
+                       (resume_id, session['user_id']))
         resume = cursor.fetchone()
 
-        if resume:
-            parsed = json.loads(resume['parsed_text'] or '{}')
-            skills = parsed.get('skills', [])
-            filtered_jobs = get_filtered_jobs_for_user(skills)
+        if resume and resume.get('parsed_text'):
+            skills = []
+            try:
+                skills = json.loads(resume['parsed_text']).get('skills', [])
+            except json.JSONDecodeError:
+                pass
 
-            for job in filtered_jobs[:50]:
-                score = job['match_score']
+            # get basic matches (Manual jobs excluded here)
+            basic_jobs = get_filtered_jobs_for_user(skills, search_query, location_filter)
+
+            # enhance with detailed scoring
+            for job in basic_jobs:
+                if job.get('source') == 'Manual':
+                    continue
+                detailed_score = job.get('match_score', 0)
+                breakdown = {}
+                if job_matcher:
+                    try:
+                        res = job_matcher.calculate_match_score(
+                            resume['parsed_text'], job.get('description',''), job.get('requirements','')
+                        )
+                        detailed_score = res.get('final_score', detailed_score)
+                        breakdown = res
+                    except Exception as e:
+                        logger.error(f"JobMatcher error: {e}")
+
+                # record match
                 try:
                     cursor.execute(
-                        "INSERT INTO job_matches (user_id, resume_id, job_id, match_score, matched_at) VALUES (%s,%s,%s,%s,%s)",
-                        (session['user_id'], resume_id, job['job_id'], score, datetime.now())
+                        "INSERT INTO job_matches (user_id,resume_id,job_id,match_score,matched_at) "
+                        "VALUES (%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
+                        (session['user_id'], resume_id, job['job_id'], detailed_score, datetime.now())
                     )
                     conn.commit()
-                except mysql.connector.IntegrityError:
-                    pass
                 except Exception as e:
                     logger.error(f"Error storing job match: {e}")
 
                 matches.append({
                     "job": job,
-                    "match_score": score,
-                    "relevance_score": score
+                    "match_score": job.get('match_score', 0),
+                    "detailed_match_score": detailed_score,
+                    "skills_breakdown": breakdown
                 })
 
         cursor.close()
         conn.close()
 
-    return render_template('job_matches.html', matches=matches)
+    # sort by detailed score
+    matches.sort(key=lambda x: x['detailed_match_score'], reverse=True)
+    return render_template('job_matches.html',
+                           matches=matches,
+                           resume_id=resume_id,
+                           search_query=search_query,
+                           location_filter=location_filter)
 
 @app.route('/search-jobs')
 def search_jobs():
