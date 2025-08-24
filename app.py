@@ -136,6 +136,26 @@ def track_user_login(user_id):
         finally:
             cursor.close()
             conn.close()
+@app.route('/personalized-search')
+def personalized_search_redirect():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    conn = get_db_connection()
+    if conn:
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cursor.execute("""
+            SELECT resume_id FROM resumes
+            WHERE user_id=%s
+            ORDER BY created_at DESC
+            LIMIT 1
+        """, (session['user_id'],))
+        resume = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        if resume:
+            return redirect(url_for('match_jobs', resume_id=resume['resume_id']))
+    flash("Please upload a resume first to get personalized matches.", "warning")
+    return redirect(url_for('upload_resume'))
 @app.route('/test-jobs')
 def test_jobs():
     conn = get_db_connection()
