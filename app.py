@@ -3,6 +3,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from job_fetcher.job_updater import JobUpdater
 from job_fetcher.job_sources import JobAggregator
+from utils import strip_html_tags
 import psycopg2
 from psycopg2 import Error
 import psycopg2.extras
@@ -269,69 +270,72 @@ def calculate_search_relevance(job, search_query):
 
     return min(relevance_score, 100)
 def get_filtered_jobs_for_user(user_skills, search_query="", location_filter="", source_filter=""):
-    """
-    Get filtered jobs for user - UPDATED VERSION with Manual job exclusion
-    """
+    """ Get filtered jobs for user - UPDATED VERSION with HTML cleaning """
     conn = get_db_connection()
     if not conn:
         return []
-
     try:
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         base_query = """
-            SELECT * FROM jobs
-            WHERE status = 'active'
-            AND is_active = TRUE
-            AND source != 'Manual'
-            AND description IS NOT NULL
-            AND requirements IS NOT NULL
-            AND (external_url IS NULL OR external_url NOT LIKE '%/jobs/search%')
+        SELECT * FROM jobs 
+        WHERE status = 'active' AND is_active = TRUE 
+        AND source != 'Manual'
+        AND description IS NOT NULL 
+        AND requirements IS NOT NULL
+        AND (external_url IS NULL OR external_url NOT LIKE '%/jobs/search%')
         """
+        
         params = []
-
-        # Apply source filter if provided
+        
+        # Apply filters...
         if source_filter and source_filter != "":
             base_query += " AND source = %s"
             params.append(source_filter)
-
+        
         if location_filter:
             base_query += " AND location ILIKE %s"
             params.append(f"%{location_filter}%")
-
+            
         if search_query:
             base_query += " AND (title ILIKE %s OR description ILIKE %s OR company ILIKE %s)"
             like_pattern = f"%{search_query}%"
             params.extend([like_pattern]*3)
-
+        
         base_query += " ORDER BY created_at DESC LIMIT 100"
         
         if params:
             cursor.execute(base_query, params)
         else:
             cursor.execute(base_query)
-
+            
         all_jobs = cursor.fetchall()
         cursor.close()
         conn.close()
-
+        
         filtered_jobs = []
         
-        # If no user skills provided, return all jobs with basic score
+        # Process jobs with skill matching
         if not user_skills:
             for job in all_jobs:
                 job_dict = dict(job)
+                # CLEAN HTML TAGS HERE
+                job_dict['description'] = strip_html_tags(job_dict.get('description', ''))
+                job_dict['requirements'] = strip_html_tags(job_dict.get('requirements', ''))
                 job_dict['match_score'] = 0
                 job_dict['matched_skills'] = []
                 job_dict['skill_matches'] = 0
                 filtered_jobs.append(job_dict)
             return filtered_jobs
-
-        # Process jobs with skill matching
-        user_skills_lower = [skill.lower() for skill in user_skills]
         
+        user_skills_lower = [skill.lower() for skill in user_skills]
         for job in all_jobs:
-            # Create combined text for skill matching
-            job_text = f"{job.get('title', '')} {job.get('description', '')} {job.get('requirements', '')}".lower()
+            job_dict = dict(job)
+            # CLEAN HTML TAGS HERE
+            job_dict['description'] = strip_html_tags(job_dict.get('description', ''))
+            job_dict['requirements'] = strip_html_tags(job_dict.get('requirements', ''))
+            
+            # Create combined text for skill matching (using cleaned text)
+            job_text = f"{job_dict.get('title', '')} {job_dict['description']} {job_dict['requirements']}".lower()
             
             # Find matching skills
             matched_skills = []
@@ -339,28 +343,21 @@ def get_filtered_jobs_for_user(user_skills, search_query="", location_filter="",
                 if skill in job_text:
                     matched_skills.append(skill)
             
-            # Only include jobs with at least 1 skill match for personalized results
+            # Only include jobs with at least 1 skill match
             if matched_skills:
                 match_score = (len(matched_skills) / len(user_skills_lower)) * 100
-                
-                job_dict = dict(job)
                 job_dict['match_score'] = round(match_score, 1)
                 job_dict['matched_skills'] = matched_skills
                 job_dict['skill_matches'] = len(matched_skills)
-                job_dict['combined_score'] = match_score
-                job_dict['search_score'] = match_score
-                job_dict['resume_score'] = match_score
-                
                 filtered_jobs.append(job_dict)
-
-        # Sort by match score (highest first)
+        
+        # Sort by match score (HIGHEST FIRST - DESCENDING ORDER)
         filtered_jobs.sort(key=lambda x: x['match_score'], reverse=True)
         return filtered_jobs
         
     except Exception as e:
         logger.error(f"Error in get_filtered_jobs_for_user: {e}")
         return []
-
 
 def calculate_resume_job_match(job, user_skills):
     """Calculate skills-based match score"""
@@ -565,6 +562,65 @@ def upload_resume():
             flash("Invalid file type. Only PDF and DOCX allowed.", "danger")
 
     return render_template('upload_resume.html', parsed_text=parsed_text, existing_resumes=existing_resumes)
+@app.route('/jobs/search')
+def jobs_search():
+    """General job search route"""
+    search_query = request.args.get('keywords', '').strip()
+    location_filter = request.args.get('location', '').strip()
+    source_filter = request.args.get('source', '').strip()
+    
+    # Get jobs without user skills filter for general search
+    jobs = get_filtered_jobs_for_user([], search_query, location_filter, source_filter)
+    
+    # Add search relevance scoring for general search
+    for job in jobs:
+        job['relevance_score'] = calculate_search_relevance(job, search_query)
+    
+    # Sort by relevance for general search
+    jobs.sort(key=lambda x: x.get('relevance_score', 0), reverse=True)
+    
+    return render_template('job_search.html', 
+                         jobs=jobs, 
+                         search_query=search_query,
+                         location_filter=location_filter,
+                         source_filter=source_filter)
+
+@app.route('/jobs/search-personalized')
+def personalized_jobs_search():
+    """Personalized job search route"""
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    search_query = request.args.get('keywords', '').strip()
+    location_filter = request.args.get('location', '').strip()
+    source_filter = request.args.get('source', '').strip()
+    
+    # Get user skills
+    user_skills = []
+    conn = get_db_connection()
+    if conn:
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cursor.execute("SELECT * FROM resumes WHERE user_id = %s ORDER BY created_at DESC LIMIT 1", 
+                      (session['user_id'],))
+        resume = cursor.fetchone()
+        if resume and resume.get('parsed_text'):
+            try:
+                parsed = json.loads(resume['parsed_text'])
+                user_skills = parsed.get('skills', [])
+            except (json.JSONDecodeError, KeyError):
+                user_skills = []
+        cursor.close()
+        conn.close()
+    
+    # Get personalized jobs
+    jobs = get_filtered_jobs_for_user(user_skills, search_query, location_filter, source_filter)
+    
+    return render_template('job_search_personalized.html', 
+                         jobs=jobs, 
+                         user_skills=user_skills,
+                         search_query=search_query,
+                         location_filter=location_filter,
+                         source_filter=source_filter)
 
 @app.route('/post_job', methods=['GET', 'POST'])
 def post_job():
