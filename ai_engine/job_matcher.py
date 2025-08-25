@@ -32,21 +32,60 @@ class JobMatcher:
         return text.strip()
 
     def extract_skills_from_job(self, job_description: str, job_requirements: str = "") -> List[str]:
-        """Extract skills mentioned in job description and requirements"""
+    """Extract skills mentioned in job description and requirements including internship positions"""
         combined_text = f"{job_description} {job_requirements}".lower()
-
-        # Common technical + soft skill keywords
+    
+    # Enhanced skill keywords including internship-friendly terms
         skill_keywords = [
-            'python', 'java', 'javascript', 'c++', 'php', 'ruby', 'go', 'rust',
+            'python', 'java', 'javascript', 'c++', 'php', 'ruby', 'go', 'rust', 'c#',
             'html', 'css', 'react', 'angular', 'vue', 'node.js', 'django', 'flask',
             'mysql', 'postgresql', 'mongodb', 'sqlite', 'oracle', 'redis',
             'git', 'docker', 'kubernetes', 'jenkins', 'aws', 'azure', 'gcp',
             'machine learning', 'data science', 'artificial intelligence', 'deep learning',
-            'project management', 'agile', 'scrum', 'leadership', 'communication'
+            'project management', 'agile', 'scrum', 'leadership', 'communication',
+            'intern', 'internship', 'entry level', 'junior', 'graduate', 'trainee', 'fresher'  # Added internship terms
         ]
-
+    
         found_skills = [skill for skill in skill_keywords if skill in combined_text]
         return found_skills
+
+    def match_experience(self, resume_text: str, job_description: str) -> float:
+        """
+        Enhanced experience matching that considers internships and entry-level positions
+        """
+        def extract_years(text: str) -> int:
+            matches = re.findall(r'(\d+)\s+year', text.lower())
+            years = [int(m) for m in matches]
+            return max(years) if years else 0
+    
+        def has_internship_experience(text: str) -> bool:
+            internship_terms = ['intern', 'internship', 'trainee', 'co-op', 'apprentice', 'volunteer']
+            return any(term in text.lower() for term in internship_terms)
+    
+        def is_entry_level_job(text: str) -> bool:
+            entry_terms = ['entry level', 'junior', 'graduate', 'trainee', 'intern', 'fresher', 'new grad']
+            return any(term in text.lower() for term in entry_terms)
+    
+        resume_years = extract_years(resume_text)
+        job_years = extract_years(job_description)
+    
+        # Check for internship experience in resume
+        has_internship = has_internship_experience(resume_text)
+        is_entry_job = is_entry_level_job(job_description)
+    
+        # Special handling for entry-level positions and candidates with internship experience
+        if is_entry_job and (resume_years <= 2 or has_internship):
+            return 1.0  # Perfect match for entry-level with internship experience
+    
+        if job_years == 0:
+            return 1.0  # If no requirement given, full score
+    
+        # If candidate has internship experience, give partial credit for experience requirements
+        if has_internship and job_years <= 3:
+            return 0.8  # Good match for candidates with internship experience applying to junior positions
+    
+        return min(resume_years / job_years, 1.0) if job_years > 0 else 1.0
+
 
     def extract_skills_from_resume(self, resume_text: str) -> List[str]:
         """Extract skills from resume text using same approach as job description"""
