@@ -1,136 +1,88 @@
 {% extends "base.html" %}
-
 {% block title %}Job Search - AI Job Matcher{% endblock %}
-
 {% block content %}
-<div class="container py-4">
-    <!-- Search Form -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card">
+
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <h2>Search Jobs</h2>
+            
+            <!-- FIXED SEARCH FORM -->
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h4><i class="fas fa-search me-2"></i>Search Jobs</h4>
-                    <form method="GET" class="row g-3">
-                        <div class="col-md-4">
-                            <label for="q" class="form-label">Keywords</label>
-                            <input type="text" class="form-control" id="q" name="q" 
-                                   value="{{ query }}" placeholder="e.g., Python Developer">
-                        </div>
-                        <div class="col-md-3">
-                            <label for="location" class="form-label">Location</label>
-                            <input type="text" class="form-control" id="location" name="location" 
-                                   value="{{ location }}" placeholder="e.g., Remote, New York">
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label">&nbsp;</label>
-                            <button type="submit" class="btn btn-primary d-block w-100">
-                                <i class="fas fa-search me-2"></i>Search
-                            </button>
+                    <form method="GET" action="{{ url_for('jobs_search') }}">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <input type="text" class="form-control" name="keywords" 
+                                       placeholder="e.g., Python Developer" 
+                                       value="{{ search_query or '' }}">
+                            </div>
+                            <div class="col-md-3">
+                                <input type="text" class="form-control" name="location" 
+                                       placeholder="e.g., Remote, New York" 
+                                       value="{{ location_filter or '' }}">
+                            </div>
+                            <div class="col-md-3">
+                                <select class="form-control" name="source">
+                                    <option value="">All Sources</option>
+                                    <option value="LinkedIn" {{ 'selected' if source_filter == 'LinkedIn' }}>LinkedIn</option>
+                                    <option value="Remotive" {{ 'selected' if source_filter == 'Remotive' }}>Remotive</option>
+                                    <option value="Adzuna" {{ 'selected' if source_filter == 'Adzuna' }}>Adzuna</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <button type="submit" class="btn btn-primary w-100">
+                                    <i class="fas fa-search"></i> Search
+                                </button>
+                            </div>
                         </div>
                     </form>
                 </div>
             </div>
-        </div>
-    </div>
-
-    {% if session.user_id %}
-    <div class="row mb-3">
-        <div class="col-12">
-            <div class="alert alert-info">
-                <i class="fas fa-user"></i> Want better results? Try 
-                <a href="{{ url_for('personalized_search_redirect') }}" class="alert-link">
-                    Personalized Search
-                </a> based on your resume!
-            </div>
-        </div>
-    </div>
-    {% endif %}
-
-
-    <div class="row mb-3">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h5>Found {{ total }} relevant jobs</h5>
-                    {% if query %}
-                    <small class="text-muted">Filtered by relevance to "{{ query }}"</small>
-                    {% endif %}
-                </div>
-                <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">
-                    <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
-                </a>
-            </div>
-        </div>
-    </div>
-
-    <!-- Job Results -->
-    <div class="row">
-        {% for job in jobs %}
-        <div class="col-md-6 col-lg-4 mb-4">
-            <div class="card h-100 job-card">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <h6 class="card-title">
-                            <a href="{{ job.external_url }}" target="_blank" rel="noopener">
-                                {{ job.title }}
-                            </a>
-                        </h6>
-                        <span class="badge 
-                            {% if job.source == 'Indeed' %}bg-primary
-                            {% else %}bg-secondary{% endif %}">
-                            {{ job.source }}
-                        </span>
-                    </div>
-                    {% if job.company %}
-                    <div class="mb-2">
-                        <i class="fas fa-building text-muted me-2"></i>
-                        <span class="text-muted">{{ job.company }}</span>
-                    </div>
-                    {% endif %}
-                    <div class="mb-2">
-                        <i class="fas fa-map-marker-alt text-muted me-2"></i>
-                        <span class="text-muted">{{ job.location }}</span>
-                    </div>
-                    <p class="card-text small">
-                        {{ job.description[:120] }}
-                        {% if job.description|length > 120 %}...{% endif %}
-                    </p>
-                    <div class="mt-auto">
-                        <small class="text-muted">
-                            <i class="fas fa-calendar me-1"></i>
-                            Posted: {{ job.created_at.strftime('%Y-%m-%d') if job.created_at else 'Unknown' }}
-                        </small>
+            
+            <!-- SEARCH RESULTS -->
+            {% if jobs %}
+                <h4>Found {{ jobs|length }} jobs</h4>
+                {% for job in jobs %}
+                <div class="card mb-3 job-card">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <h5 class="card-title">{{ job.title }}</h5>
+                                <p class="text-muted mb-2">
+                                    <i class="fas fa-building"></i> {{ job.company or 'Company Not Listed' }} 
+                                    <span class="mx-2">|</span>
+                                    <i class="fas fa-map-marker-alt"></i> {{ job.location or 'Location Not Specified' }}
+                                </p>
+                                <p class="card-text">
+                                    {{ job.description[:150] }}{% if job.description|length > 150 %}...{% endif %}
+                                </p>
+                                <p class="text-muted small">
+                                    <strong>Requirements:</strong> 
+                                    {{ job.requirements[:100] }}{% if job.requirements|length > 100 %}...{% endif %}
+                                </p>
+                            </div>
+                            <div class="col-md-4 text-right">
+                                <small class="text-muted">{{ job.source }}</small>
+                                {% if job.external_url %}
+                                    <a href="{{ job.external_url }}" target="_blank" class="btn btn-primary btn-sm d-block mt-2">
+                                        Apply Now <i class="fas fa-external-link-alt"></i>
+                                    </a>
+                                {% endif %}
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <div class="card-footer bg-light">
-                    <div class="d-flex justify-content-between">
-                        <small class="text-muted">Source: {{ job.source }}</small>
-                        {% if job.external_url %}
-                        <a href="{{ job.external_url or job.url }}" target="_blank" class="btn btn-primary btn-sm">
-                            <i class="fas fa-external-link-alt me-1"></i>Apply Now
-                        </a>
-                        {% endif %}
-                    </div>
+                {% endfor %}
+            {% else %}
+                <div class="alert alert-info">
+                    <h4>No jobs found</h4>
+                    <p>Try adjusting your search criteria or check back later for new job postings.</p>
+                    <small>Check back later as new jobs are automatically updated every 6 hours.</small>
                 </div>
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-
-    {% if jobs|length == 0 %}
-    <div class="row">
-        <div class="col-12">
-            <div class="alert alert-info text-center">
-                <i class="fas fa-info-circle fa-2x mb-3"></i>
-                <h4>No Jobs Found</h4>
-                <p>Try adjusting your search criteria or check back later for new job postings.</p>
-                <!-- Removed the problematic admin_update_jobs button -->
-                <p>
-                    <small class="text-muted">Check back later as new jobs are automatically updated every 6 hours.</small>
-                </p>
-            </div>
+            {% endif %}
         </div>
     </div>
-    {% endif %}
 </div>
+
 {% endblock %}
