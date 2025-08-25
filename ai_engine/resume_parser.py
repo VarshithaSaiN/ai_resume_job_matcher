@@ -96,7 +96,7 @@ class ResumeParser:
                     break
         
         return info
-    def extract_skills(self, text: str) -> List[str]:
+def extract_skills(self, text: str) -> List[str]:
     """Extract skills from resume text including internship-related skills"""
     text_lower = text.lower()
     found_skills = []
@@ -120,73 +120,33 @@ class ResumeParser:
     
     return list(set(found_skills)) # Remove duplicates
 
-    def extract_experience(self, text: str) -> List[str]:
-        """Extract work experience including internships from resume text"""
-        experience_keywords = [
-            'experience', 'work experience', 'employment', 'work history',
-            'professional experience', 'career', 'positions', 
-            'internship', 'intern', 'training', 'project', 'volunteer'  # Added internship keywords
-        ]
+def extract_experience(self, text: str) -> List[str]:
+    """Extract work experience including internships from resume text"""
+    experience_keywords = [
+        'experience', 'work experience', 'employment', 'work history',
+        'professional experience', 'career', 'positions', 
+        'internship', 'intern', 'training', 'project', 'volunteer'  # Added internship keywords
+    ]
     
-        experience_sections = []
-        lines = text.split('\n')
+    experience_sections = []
+    lines = text.split('\n')
     
     # Find experience section
-        experience_start = -1
-        for i, line in enumerate(lines):
-            line_lower = line.lower().strip()
-            if any(keyword in line_lower for keyword in experience_keywords):
-                experience_start = i
-                break
+    experience_start = -1
+    for i, line in enumerate(lines):
+        line_lower = line.lower().strip()
+        if any(keyword in line_lower for keyword in experience_keywords):
+            experience_start = i
+            break
     
-        if experience_start >= 0:
-            # Extract next 15 lines after experience header (increased for more detail)
-            for i in range(experience_start + 1, min(experience_start + 16, len(lines))):
-                line = lines[i].strip()
-                if line and len(line) > 10: # Meaningful content
-                    experience_sections.append(line)
+    if experience_start >= 0:
+        # Extract next 15 lines after experience header (increased for more detail)
+        for i in range(experience_start + 1, min(experience_start + 16, len(lines))):
+            line = lines[i].strip()
+            if line and len(line) > 10: # Meaningful content
+                experience_sections.append(line)
     
-        return experience_sections[:8] # Return first 8 experience items
-
-    def extract_skills(self, text: str) -> List[str]:
-        """Extract skills from resume text"""
-        text_lower = text.lower()
-        found_skills = []
-        
-        # Check all skill categories
-        for category, skills in self.skill_patterns.items():
-            for skill in skills:
-                if skill.lower() in text_lower:
-                    found_skills.append(skill)
-        
-        return list(set(found_skills))  # Remove duplicates
-
-    def extract_experience(self, text: str) -> List[str]:
-        """Extract work experience from resume text"""
-        experience_keywords = [
-            'experience', 'work experience', 'employment', 'work history',
-            'professional experience', 'career', 'positions'
-        ]
-        
-        experience_sections = []
-        lines = text.split('\n')
-        
-        # Find experience section
-        experience_start = -1
-        for i, line in enumerate(lines):
-            line_lower = line.lower().strip()
-            if any(keyword in line_lower for keyword in experience_keywords):
-                experience_start = i
-                break
-        
-        if experience_start >= 0:
-            # Extract next 10 lines after experience header
-            for i in range(experience_start + 1, min(experience_start + 11, len(lines))):
-                line = lines[i].strip()
-                if line and len(line) > 10:  # Meaningful content
-                    experience_sections.append(line)
-        
-        return experience_sections[:5]  # Return first 5 experience items
+    return experience_sections[:8] # Return first 8 experience items
 
     def extract_education(self, text: str) -> List[str]:
         """Extract education information from resume text"""
