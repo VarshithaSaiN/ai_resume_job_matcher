@@ -153,6 +153,57 @@ def clean_html_description(description):
     clean = ' '.join(clean.split())
     # Limit length for display
     return clean[:500] + "..." if len(clean) > 500 else clean
+def calculate_realistic_match_score(job, user_skills):
+    """Calculate realistic match score based on actual skill overlap"""
+    if not user_skills:
+        return 0
+    
+    try:
+        # Combine job text for analysis
+        job_text = f"{job.get('title', '')} {job.get('description', '')} {job.get('requirements', '')}".lower()
+        
+        # Convert skills to lowercase for matching
+        user_skills_lower = [skill.lower().strip() for skill in user_skills]
+        
+        # Find matching skills
+        matched_skills = []
+        for skill in user_skills_lower:
+            if skill in job_text and len(skill) > 2:  # Avoid matching very short words
+                matched_skills.append(skill)
+        
+        # Calculate percentage based on matched skills
+        if len(user_skills_lower) == 0:
+            return 0
+            
+        base_score = (len(matched_skills) / len(user_skills_lower)) * 100
+        
+        # Add bonus for exact title matches
+        title_lower = job.get('title', '').lower()
+        title_bonus = 0
+        for skill in user_skills_lower:
+            if skill in title_lower:
+                title_bonus += 5  # 5% bonus per skill in title
+        
+        # Add bonus for company/role relevance
+        relevance_bonus = 0
+        tech_keywords = ['developer', 'engineer', 'programmer', 'analyst', 'manager', 'scientist']
+        for keyword in tech_keywords:
+            if keyword in title_lower:
+                relevance_bonus += 2
+        
+        # Final score calculation
+        final_score = min(base_score + title_bonus + relevance_bonus, 100)
+        
+        # Ensure minimum realistic scores
+        if matched_skills and final_score < 10:
+            final_score = 10 + (len(matched_skills) * 5)
+        
+        return round(final_score, 1)
+        
+    except Exception as e:
+        logger.error(f"Error calculating match score: {e}")
+        return 0
+
 @app.route('/debug-jobs')
 def debug_jobs():
     conn = get_db_connection()
@@ -305,91 +356,71 @@ def calculate_search_relevance(job, search_query):
             relevance_score += 15
 
     return min(relevance_score, 100)
-def get_filtered_jobs_for_user(user_skills, search_query="", location_filter="", source_filter=""):
-    """ Get filtered jobs for user - UPDATED VERSION with HTML cleaning """
-    conn = get_db_connection()
-    if not conn:
+def get_filtered_jobs_for_user(user_skills, search_query="", location_filter="", limit=50):
+    """Get jobs filtered and matched for user skills with proper scoring"""
+    if not user_skills:
         return []
+    
     try:
-        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        base_query = """
-        SELECT * FROM jobs 
-        WHERE status = 'active' AND is_active = TRUE 
-        AND source != 'Manual'
-        AND description IS NOT NULL 
-        AND requirements IS NOT NULL
-        AND (external_url IS NULL OR external_url NOT LIKE '%/jobs/search%')
-        """
-        
-        params = []
-        
-        # Apply filters...
-        if source_filter and source_filter != "":
-            base_query += " AND source = %s"
-            params.append(source_filter)
-        
-        if location_filter:
-            base_query += " AND location ILIKE %s"
-            params.append(f"%{location_filter}%")
+        conn = get_db_connection()
+        if not conn:
+            return []
             
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        
+        base_query = """
+            SELECT * FROM jobs 
+            WHERE status='active' AND is_active=TRUE 
+            AND source != 'Manual'
+            AND description IS NOT NULL 
+            AND requirements IS NOT NULL
+        """
+        params = []
+
+        # Apply search filters
         if search_query:
             base_query += " AND (title ILIKE %s OR description ILIKE %s OR company ILIKE %s)"
             like_pattern = f"%{search_query}%"
-            params.extend([like_pattern]*3)
-        
-        base_query += " ORDER BY created_at DESC LIMIT 100"
-        
-        if params:
-            cursor.execute(base_query, params)
-        else:
-            cursor.execute(base_query)
+            params.extend([like_pattern, like_pattern, like_pattern])
             
-        all_jobs = cursor.fetchall()
-        cursor.close()
-        conn.close()
+        if location_filter:
+            base_query += " AND location ILIKE %s"
+            params.append(f"%{location_filter}%")
+
+        base_query += " ORDER BY created_at DESC"
         
-        filtered_jobs = []
-        
-        # Process jobs with skill matching
-        if not user_skills:
-            for job in all_jobs:
-                job_dict = dict(job)
-                # CLEAN HTML TAGS HERE
-                job_dict['description'] = strip_html_tags(job_dict.get('description', ''))
-                job_dict['requirements'] = strip_html_tags(job_dict.get('requirements', ''))
-                job_dict['match_score'] = 0
-                job_dict['matched_skills'] = []
-                job_dict['skill_matches'] = 0
-                filtered_jobs.append(job_dict)
-            return filtered_jobs
+        cursor.execute(base_query, params)
+        jobs = cursor.fetchall()
+        matched_jobs = []
         
         user_skills_lower = [skill.lower() for skill in user_skills]
-        for job in all_jobs:
-            job_dict = dict(job)
-            # CLEAN HTML TAGS HERE
-            job_dict['description'] = strip_html_tags(job_dict.get('description', ''))
-            job_dict['requirements'] = strip_html_tags(job_dict.get('requirements', ''))
-            
-            # Create combined text for skill matching (using cleaned text)
-            job_text = f"{job_dict.get('title', '')} {job_dict['description']} {job_dict['requirements']}".lower()
+        
+        for job in jobs:
+            job_text = f"{job.get('title', '')} {job.get('description', '')} {job.get('requirements', '')}".lower()
             
             # Find matching skills
             matched_skills = []
             for skill in user_skills_lower:
-                if skill in job_text:
+                if skill in job_text and len(skill) > 2:
                     matched_skills.append(skill)
             
             # Only include jobs with at least 1 skill match
             if matched_skills:
-                match_score = (len(matched_skills) / len(user_skills_lower)) * 100
-                job_dict['match_score'] = round(match_score, 1)
+                # Calculate realistic match score
+                match_score = calculate_realistic_match_score(job, user_skills)
+                
+                job_dict = dict(job)
+                job_dict['match_score'] = match_score
                 job_dict['matched_skills'] = matched_skills
                 job_dict['skill_matches'] = len(matched_skills)
-                filtered_jobs.append(job_dict)
+                matched_jobs.append(job_dict)
         
-        # Sort by match score (HIGHEST FIRST - DESCENDING ORDER)
-        filtered_jobs.sort(key=lambda x: x['match_score'], reverse=True)
-        return filtered_jobs
+        # Sort by match score (highest first)
+        matched_jobs.sort(key=lambda x: x['match_score'], reverse=True)
+        
+        cursor.close()
+        conn.close()
+        return matched_jobs[:limit]
         
     except Exception as e:
         logger.error(f"Error in get_filtered_jobs_for_user: {e}")
@@ -689,7 +720,7 @@ def match_jobs(resume_id):
     if 'user_id' not in session:
         return redirect(url_for('login'))
 
-    # read search filters
+    # Get search parameters
     search_query = request.args.get('q', '').strip()
     location_filter = request.args.get('location', '').strip()
 
@@ -698,64 +729,61 @@ def match_jobs(resume_id):
 
     if conn:
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cursor.execute("SELECT parsed_text FROM resumes WHERE resume_id=%s AND user_id=%s",
-                       (resume_id, session['user_id']))
+        cursor.execute(
+            "SELECT parsed_text FROM resumes WHERE resume_id=%s AND user_id=%s",
+            (resume_id, session['user_id'])
+        )
         resume = cursor.fetchone()
 
         if resume and resume.get('parsed_text'):
-            skills = []
             try:
                 skills = json.loads(resume['parsed_text']).get('skills', [])
             except json.JSONDecodeError:
-                pass
+                skills = []
 
-            # get basic matches (Manual jobs excluded here)
-            basic_jobs = get_filtered_jobs_for_user(skills, search_query, location_filter)
+            # Get personalized matches with search filters
+            basic_jobs = get_filtered_jobs_for_user(skills, search_query, location_filter, limit=100)
 
-            # enhance with detailed scoring
+            # Calculate proper match scores
             for job in basic_jobs:
                 if job.get('source') == 'Manual':
                     continue
-                detailed_score = job.get('match_score', 0)
-                breakdown = {}
+
+                # Calculate realistic match score based on skills
+                match_score = calculate_realistic_match_score(job, skills)
+                
+                # Enhanced scoring with JobMatcher if available
+                detailed_score = match_score
                 if job_matcher:
                     try:
-                        res = job_matcher.calculate_match_score(
-                            resume['parsed_text'], job.get('description',''), job.get('requirements','')
+                        result = job_matcher.calculate_match_score(
+                            resume['parsed_text'],
+                            job.get('description', ''),
+                            job.get('requirements', '')
                         )
-                        detailed_score = res.get('final_score', detailed_score)
-                        breakdown = res
+                        detailed_score = result.get('final_score', match_score)
                     except Exception as e:
                         logger.error(f"JobMatcher error: {e}")
 
-                # record match
-                try:
-                    cursor.execute(
-                        "INSERT INTO job_matches (user_id,resume_id,job_id,match_score,matched_at) "
-                        "VALUES (%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
-                        (session['user_id'], resume_id, job['job_id'], detailed_score, datetime.now())
-                    )
-                    conn.commit()
-                except Exception as e:
-                    logger.error(f"Error storing job match: {e}")
-
                 matches.append({
                     "job": job,
-                    "match_score": job.get('match_score', 0),
+                    "match_score": match_score,
                     "detailed_match_score": detailed_score,
-                    "skills_breakdown": breakdown
+                    "matched_skills": job.get('matched_skills', [])
                 })
 
         cursor.close()
         conn.close()
 
-    # sort by detailed score
-    matches.sort(key=lambda x: x['detailed_match_score'], reverse=True)
+    # Sort by detailed match score (descending order)
+    matches.sort(key=lambda x: x.get('detailed_match_score', 0), reverse=True)
+
     return render_template('job_matches.html',
-                           matches=matches,
-                           resume_id=resume_id,
-                           search_query=search_query,
-                           location_filter=location_filter)
+                         matches=matches,
+                         resume_id=resume_id,
+                         search_query=search_query,
+                         location_filter=location_filter,
+                         total_matches=len(matches))
 
 @app.route('/search-jobs')
 def search_jobs():
