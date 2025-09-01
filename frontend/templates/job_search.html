@@ -10,31 +10,17 @@
             <!-- FIXED SEARCH FORM -->
             <div class="card mb-4">
                 <div class="card-body">
-                    <form method="GET" action="{{ url_for('jobs_search') }}">
-                        <div class="row">
-                            <div class="col-md-4">
-                                <input type="text" class="form-control" name="keywords" 
-                                       placeholder="e.g., Python Developer" 
-                                       value="{{ search_query or '' }}">
-                            </div>
-                            <div class="col-md-3">
-                                <input type="text" class="form-control" name="location" 
-                                       placeholder="e.g., Remote, New York" 
-                                       value="{{ location_filter or '' }}">
-                            </div>
-                            <div class="col-md-3">
-                                <select class="form-control" name="source">
-                                    <option value="">All Sources</option>
-                                    <option value="LinkedIn" {{ 'selected' if source_filter == 'LinkedIn' }}>LinkedIn</option>
-                                    <option value="Remotive" {{ 'selected' if source_filter == 'Remotive' }}>Remotive</option>
-                                    <option value="Adzuna" {{ 'selected' if source_filter == 'Adzuna' }}>Adzuna</option>
-                                </select>
-                            </div>
-                            <div class="col-md-2">
-                                <button type="submit" class="btn btn-primary w-100">
-                                    <i class="fas fa-search"></i> Search
-                                </button>
-                            </div>
+                    <form method="GET" action="{{ url_for('search_jobs') }}" class="mb-4">
+                        <div class="input-group">
+                            <input type="text" name="q" class="form-control" 
+                               placeholder="e.g., Python Developer" 
+                               value="{{ query }}">
+                            <input type="text" name="location" class="form-control" 
+                               placeholder="e.g., Remote, New York" 
+                               value="{{ location }}">
+                            <button class="btn btn-primary" type="submit">
+                                <i class="fas fa-search"></i> Search
+                            </button>
                         </div>
                     </form>
                 </div>
