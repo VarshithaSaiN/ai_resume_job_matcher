@@ -137,6 +137,42 @@ def track_user_login(user_id):
         finally:
             cursor.close()
             conn.close()
+import re
+from html import unescape
+
+def clean_html_description(description):
+    """Remove HTML tags and decode HTML entities from job description"""
+    if not description:
+        return ""
+    
+    # Remove HTML tags
+    clean = re.sub(r'<[^>]+>', '', description)
+    # Decode HTML entities like &amp; &lt; &gt;
+    clean = unescape(clean)
+    # Remove extra whitespace
+    clean = ' '.join(clean.split())
+    # Limit length for display
+    return clean[:500] + "..." if len(clean) > 500 else clean
+@app.route('/debug-jobs')
+def debug_jobs():
+    conn = get_db_connection()
+    if conn:
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cursor.execute("SELECT COUNT(*) as total FROM jobs")
+        total = cursor.fetchone()['total']
+        
+        cursor.execute("SELECT COUNT(*) as active FROM jobs WHERE status='active' AND is_active=TRUE")
+        active = cursor.fetchone()['active']
+        
+        cursor.execute("SELECT COUNT(*) as non_manual FROM jobs WHERE source != 'Manual' AND status='active'")
+        non_manual = cursor.fetchone()['non_manual']
+        
+        cursor.close()
+        conn.close()
+        
+        return f"Total jobs: {total}, Active: {active}, Non-manual: {non_manual}"
+    return "Database connection failed"
+
 @app.route('/personalized-search')
 def personalized_search_redirect():
     if 'user_id' not in session:
@@ -723,89 +759,81 @@ def match_jobs(resume_id):
 
 @app.route('/search-jobs')
 def search_jobs():
-    # Get query parameters
     query = request.args.get('q', '').strip()
     location = request.args.get('location', '').strip()
-    source = request.args.get('source', '').strip()
-
-    # Determine the logged-in user’s latest resume ID (for personalized search link)
-    user_resume_id = None
-    if 'user_id' in session:
-        conn = get_db_connection()
-        if conn:
-            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            cur.execute(
-                "SELECT resume_id FROM resumes WHERE user_id=%s ORDER BY created_at DESC LIMIT 1",
-                (session['user_id'],)
-            )
-            row = cur.fetchone()
-            if row:
-                user_resume_id = row['resume_id']
-            cur.close()
-            conn.close()
-
-    # Search for jobs
+    
     conn = get_db_connection()
     jobs = []
     total = 0
+    user_resume_id = None
+    
     if conn:
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        
+        # Get user's latest resume ID if logged in
+        if 'user_id' in session:
+            try:
+                cursor.execute("""
+                    SELECT resume_id FROM resumes 
+                    WHERE user_id = %s 
+                    ORDER BY created_at DESC 
+                    LIMIT 1
+                """, (session['user_id'],))
+                resume_row = cursor.fetchone()
+                if resume_row:
+                    user_resume_id = resume_row['resume_id']
+            except Exception as e:
+                logger.error(f"Error getting user resume: {e}")
 
+        # Base query - make it less restrictive
         base_query = """
-            SELECT * FROM jobs
-            WHERE status='active'
-              AND is_active=TRUE
-              AND source!='Manual'
-              AND title NOT LIKE '%%search%%'
-              AND (external_url IS NULL OR external_url NOT LIKE '%%/jobs/search%%')
+            SELECT * FROM jobs 
+            WHERE status = 'active' 
+            AND is_active = TRUE 
+            AND source != 'Manual'
+            AND description IS NOT NULL
         """
         params = []
 
-        # Apply keyword filter
+        # Add search filters only if provided
         if query:
             base_query += " AND (title ILIKE %s OR description ILIKE %s OR company ILIKE %s)"
             like_pattern = f"%{query}%"
             params.extend([like_pattern, like_pattern, like_pattern])
-
-        # Apply location filter
+            
         if location:
             base_query += " AND location ILIKE %s"
             params.append(f"%{location}%")
-
-        # Apply source filter
-        if source:
-            base_query += " AND source = %s"
-            params.append(source)
-
+            
         base_query += " ORDER BY created_at DESC LIMIT 50"
 
         try:
-            if params:
-                cursor.execute(base_query, params)
-            else:
-                cursor.execute(base_query)
+            cursor.execute(base_query, params)
             jobs = cursor.fetchall()
+            
+            # Clean HTML from descriptions
+            for job in jobs:
+                if job.get('description'):
+                    job['description'] = clean_html_description(job['description'])
+            
             total = len(jobs)
-            logger.info(f"Found {total} jobs for query '{query}'")
+            logger.info(f"Found {total} jobs for query: '{query}', location: '{location}'")
+            
         except Exception as e:
             logger.error(f"Error searching jobs: {e}")
-            flash("An error occurred while searching for jobs. Please try again.", "danger")
+            flash("Error searching jobs. Please try again.", "danger")
         finally:
             cursor.close()
             conn.close()
     else:
         flash("Database connection error.", "danger")
 
-    return render_template(
-        'job_search.html',
-        jobs=jobs,
-        total=total,
-        query=query,
-        location=location,
-        source=source,
-        user_resume_id=user_resume_id  # so template can link to match_jobs(resume_id)
-    )
-
+    return render_template('job_search.html',
+                         jobs=jobs,
+                         total=total,
+                         query=query,
+                         location=location,
+                         user_resume_id=user_resume_id)
 @app.route('/admin/cleanup-closed-jobs', methods=['POST'])
 def cleanup_closed_jobs():
     """Admin route to clean up jobs no longer accepting applications"""
