@@ -1,0 +1,18 @@
+User-agent: *
+Allow: /
+Allow: /search-jobs
+Allow: /register
+Allow: /login
+
+# Block private pages
+Disallow: /dashboard
+Disallow: /upload_resume
+Disallow: /match_jobs/
+Disallow: /admin_dashboard
+
+# Allow important files
+Allow: /sitemap.xml
+Allow: /robots.txt
+
+# Sitemap location
+Sitemap: https://ai-resume-job-matcher.onrender.com/sitemap.xml
