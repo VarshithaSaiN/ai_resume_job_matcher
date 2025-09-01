@@ -752,9 +752,65 @@ def post_job():
     return render_template('post_job.html')
 @app.route('/match_jobs/<int:resume_id>')
 def match_jobs(resume_id):
-    # ... your existing code ...
-    
-    # After you build the matches list, clean the HTML descriptions
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    # Get search parameters
+    search_query = request.args.get('q', '').strip()
+    location_filter = request.args.get('location', '').strip()
+
+    conn = get_db_connection()
+    matches = []  # Initialize matches here
+
+    if conn:
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cursor.execute(
+            "SELECT parsed_text FROM resumes WHERE resume_id=%s AND user_id=%s",
+            (resume_id, session['user_id'])
+        )
+        resume = cursor.fetchone()
+
+        if resume and resume.get('parsed_text'):
+            try:
+                skills = json.loads(resume['parsed_text']).get('skills', [])
+            except json.JSONDecodeError:
+                skills = []
+
+            # Get personalized matches with search filters
+            basic_jobs = get_filtered_jobs_for_user(skills, search_query, location_filter, limit=100)
+
+            # Calculate proper match scores
+            for job in basic_jobs:
+                if job.get('source') == 'Manual':
+                    continue
+
+                # Calculate realistic match score based on skills
+                match_score = calculate_realistic_match_score(job, skills)
+                
+                # Enhanced scoring with JobMatcher if available
+                detailed_score = match_score
+                if job_matcher:
+                    try:
+                        result = job_matcher.calculate_match_score(
+                            resume['parsed_text'],
+                            job.get('description', ''),
+                            job.get('requirements', '')
+                        )
+                        detailed_score = result.get('final_score', match_score)
+                    except Exception as e:
+                        logger.error(f"JobMatcher error: {e}")
+
+                matches.append({
+                    "job": job,
+                    "match_score": match_score,
+                    "detailed_match_score": detailed_score,
+                    "matched_skills": job.get('matched_skills', [])
+                })
+
+        cursor.close()
+        conn.close()
+
+    # Clean HTML descriptions AFTER matches is populated
     for match in matches:
         if match["job"].get('description'):
             match["job"]['description'] = clean_html_description(match["job"]['description'])
