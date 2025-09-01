@@ -510,67 +510,103 @@ def logout():
 
 @app.route('/dashboard')
 def dashboard():
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
+    try:
+        if 'user_id' not in session:
+            return redirect(url_for('login'))
 
-    resumes = []
-    all_jobs_count = 0  # Total active jobs available
-    matching_jobs_count = 0  # Jobs that match user skills
-    best_match_score = 0.0
-    user_skills = []
-    job_list = []
+        resumes = []
+        all_jobs_count = 0
+        matching_jobs_count = 0
+        best_match_score = 0.0
+        user_skills = []
+        job_list = []
 
-    conn = get_db_connection()
-    if conn:
-        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        conn = get_db_connection()
+        if conn:
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
-        # Fetch all resumes
-        cursor.execute("SELECT * FROM resumes WHERE user_id = %s", (session['user_id'],))
-        resumes = cursor.fetchall()
+            # Fetch all resumes
+            cursor.execute("SELECT * FROM resumes WHERE user_id = %s", (session['user_id'],))
+            resumes = cursor.fetchall()
 
-        # Get total count of ALL active jobs (not just matching ones)
-        cursor.execute('''
-            SELECT COUNT(*) as total_count FROM jobs 
-            WHERE status = 'active' AND is_active = TRUE
-            AND description NOT LIKE '%no longer accepting applications%'
-            AND requirements NOT LIKE '%no longer accepting applications%'
-            AND title NOT LIKE '%no longer accepting applications%'
-        ''')
-        result = cursor.fetchone()
-        all_jobs_count = result['total_count'] if result else 0
+            # Get total count of ALL active jobs
+            cursor.execute('''
+                SELECT COUNT(*) as total_count FROM jobs 
+                WHERE status = 'active' AND is_active = TRUE
+                AND source != 'Manual'
+                AND description IS NOT NULL
+            ''')
+            result = cursor.fetchone()
+            all_jobs_count = result['total_count'] if result else 0
 
-        # Fetch latest resume to get skills
-        cursor.execute("SELECT * FROM resumes WHERE user_id = %s ORDER BY created_at DESC LIMIT 1", (session['user_id'],))
-        resume = cursor.fetchone()
+            # Fetch latest resume to get skills
+            cursor.execute("SELECT * FROM resumes WHERE user_id = %s ORDER BY created_at DESC LIMIT 1", (session['user_id'],))
+            resume = cursor.fetchone()
 
-        if resume and resume.get('parsed_text'):
-            try:
-                parsed = json.loads(resume['parsed_text'])
-                user_skills = parsed.get('skills', [])
-            except (json.JSONDecodeError, KeyError):
-                user_skills = []
+            if resume and resume.get('parsed_text'):
+                try:
+                    parsed = json.loads(resume['parsed_text'])
+                    user_skills = parsed.get('skills', [])
+                except (json.JSONDecodeError, KeyError):
+                    user_skills = []
 
-        cursor.close()
-        conn.close()
+            cursor.close()
+            conn.close()
 
-    # Get matching jobs if user has skills
-    if user_skills:
-        job_list = get_filtered_jobs_for_user(user_skills)  # Use correct function
-        matching_jobs_count = len(job_list)
+        # Get matching jobs if user has skills - USE SAME LOGIC AS JOB MATCHES
+        if user_skills:
+            job_list = get_filtered_jobs_for_user(user_skills)
+            matching_jobs_count = len(job_list)
 
-        if job_list:
-            best_match_score = max(job.get('match_score', 0) for job in job_list)
-    else:
-        matching_jobs_count=0
-    return render_template(
-        'dashboard.html',
-        resumes=resumes,
-        job_count=all_jobs_count,
-        matching_jobs_count=matching_jobs_count,
-        best_match_score=best_match_score,
-        jobs=job_list,
-        user_skills=user_skills
-    )
+            # Calculate best match using the SAME logic as job matches
+            if job_list:
+                # Apply the same scoring logic
+                enhanced_jobs = []
+                for job in job_list:
+                    # Use the realistic match score calculation
+                    match_score = calculate_realistic_match_score(job, user_skills)
+                    
+                    # Enhanced scoring with JobMatcher if available
+                    detailed_score = match_score
+                    if job_matcher:
+                        try:
+                            result = job_matcher.calculate_match_score(
+                                resume['parsed_text'],
+                                job.get('description', ''),
+                                job.get('requirements', '')
+                            )
+                            detailed_score = result.get('final_score', match_score)
+                        except Exception:
+                            pass
+                    
+                    enhanced_jobs.append({
+                        'job': job,
+                        'detailed_match_score': detailed_score
+                    })
+                
+                # Get the highest detailed match score
+                best_match_score = max(job.get('detailed_match_score', 0) for job in enhanced_jobs)
+            else:
+                best_match_score = 0
+        else:
+            job_list = []
+            matching_jobs_count = 0
+            best_match_score = 0
+            
+        return render_template(
+            'dashboard.html',
+            resumes=resumes,
+            job_count=all_jobs_count,
+            matching_jobs_count=matching_jobs_count,
+            best_match_score=best_match_score,
+            jobs=job_list,
+            user_skills=user_skills
+        )
+    except Exception as e:
+        logger.error(f"Error in dashboard: {e}")
+        flash("Error loading dashboard.", "danger")
+        return redirect(url_for('index'))
+
 
 @app.route('/upload_resume', methods=['GET', 'POST'])
 def upload_resume():
@@ -714,66 +750,16 @@ def post_job():
             return redirect(url_for('dashboard'))
 
     return render_template('post_job.html')
-
 @app.route('/match_jobs/<int:resume_id>')
 def match_jobs(resume_id):
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-
-    # Get search parameters
-    search_query = request.args.get('q', '').strip()
-    location_filter = request.args.get('location', '').strip()
-
-    conn = get_db_connection()
-    matches = []
-
-    if conn:
-        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cursor.execute(
-            "SELECT parsed_text FROM resumes WHERE resume_id=%s AND user_id=%s",
-            (resume_id, session['user_id'])
-        )
-        resume = cursor.fetchone()
-
-        if resume and resume.get('parsed_text'):
-            try:
-                skills = json.loads(resume['parsed_text']).get('skills', [])
-            except json.JSONDecodeError:
-                skills = []
-
-            # Get personalized matches with search filters
-            basic_jobs = get_filtered_jobs_for_user(skills, search_query, location_filter, limit=100)
-
-            # Calculate proper match scores
-            for job in basic_jobs:
-                if job.get('source') == 'Manual':
-                    continue
-
-                # Calculate realistic match score based on skills
-                match_score = calculate_realistic_match_score(job, skills)
-                
-                # Enhanced scoring with JobMatcher if available
-                detailed_score = match_score
-                if job_matcher:
-                    try:
-                        result = job_matcher.calculate_match_score(
-                            resume['parsed_text'],
-                            job.get('description', ''),
-                            job.get('requirements', '')
-                        )
-                        detailed_score = result.get('final_score', match_score)
-                    except Exception as e:
-                        logger.error(f"JobMatcher error: {e}")
-
-                matches.append({
-                    "job": job,
-                    "match_score": match_score,
-                    "detailed_match_score": detailed_score,
-                    "matched_skills": job.get('matched_skills', [])
-                })
-
-        cursor.close()
-        conn.close()
+    # ... your existing code ...
+    
+    # After you build the matches list, clean the HTML descriptions
+    for match in matches:
+        if match["job"].get('description'):
+            match["job"]['description'] = clean_html_description(match["job"]['description'])
+        if match["job"].get('requirements'):
+            match["job"]['requirements'] = clean_html_description(match["job"]['requirements'])
 
     # Sort by detailed match score (descending order)
     matches.sort(key=lambda x: x.get('detailed_match_score', 0), reverse=True)
