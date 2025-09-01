@@ -4,6 +4,7 @@ from werkzeug.utils import secure_filename
 from job_fetcher.job_updater import JobUpdater
 from job_fetcher.job_sources import JobAggregator
 from utils import strip_html_tags
+from flask import send_from_directory
 import psycopg2
 from psycopg2 import Error
 import psycopg2.extras
