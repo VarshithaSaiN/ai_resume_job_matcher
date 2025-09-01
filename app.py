@@ -205,7 +205,9 @@ def calculate_realistic_match_score(job, user_skills):
         return 0
 # Add these imports if not already present
 from flask import send_from_directory
-
+@app.route('/google85221926df2ad0e3.html')
+def google_verification():
+    return send_from_directory('static', 'google85221926df2ad0e3.html')
 # Add these routes anywhere in your app.py file
 @app.route('/sitemap.xml')
 def sitemap():
