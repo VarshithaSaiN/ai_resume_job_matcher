@@ -15,16 +15,16 @@
             <div class="card">
                 <div class="card-body">
                     <h4><i class="fas fa-search me-2"></i>Search Jobs</h4>
-                    <form method="GET" class="row g-3">
+                    <form method="GET" action="{{ url_for('match_jobs', resume_id=resume_id) }}" class="row g-3">
                         <div class="col-md-4">
                             <label for="q" class="form-label">Keywords</label>
                             <input type="text" class="form-control" id="q" name="q" 
-                                   value="{{ query }}" placeholder="e.g., Python Developer">
+                                   value="{{ search_query or '' }}" placeholder="e.g., Python Developer">
                         </div>
                         <div class="col-md-3">
                             <label for="location" class="form-label">Location</label>
                             <input type="text" class="form-control" id="location" name="location" 
-                                   value="{{ location }}" placeholder="e.g., Remote, New York">
+                                   value="{{ location_filter or '' }}" placeholder="e.g., Remote, New York">
                         </div>
                         <div class="col-md-2">
                             <label class="form-label">&nbsp;</label>
@@ -53,7 +53,7 @@
                                         {% if match.match_score >= 80 %}bg-success
                                         {% elif match.match_score >= 60 %}bg-warning text-dark
                                         {% else %}bg-danger{% endif %} fs-6">
-                                        {{ match.match_score }}%
+                                        {{ match.detailed_match_score }}%
                                     </span>
                                 </div>
                                 <div class="mb-2">
@@ -87,11 +87,11 @@
                                 <div class="d-flex justify-content-between align-items-center mb-2">
                                     <small class="text-muted">Match Score:</small>
                                     <span class="badge
-                                        {% if match.match_score >= 80 %} bg-success
-                                        {% elif match.match_score >= 60 %} bg-warning text-dark
+                                        {% if match.detailed_match_score >= 80 %} bg-success
+                                        {% elif match.detailed_match_score >= 60 %} bg-warning text-dark
                                         {% else %} bg-danger
                                         {% endif %}">
-                                        {{ match.match_score }}%
+                                        {{ match.detailed_match_score }}%
                                     </span>
                                 </div>
                                 <!-- Apply Now Button - External Link -->
@@ -114,19 +114,19 @@
                                 <div class="row text-center">
                                     <div class="col-md-4">
                                         <div class="p-3">
-                                            <h3 class="text-success">{{ matches|selectattr('match_score', 'ge', 80)|list|length }}</h3>
+                                            <h3 class="text-success">{{ matches|selectattr('detailed_match_score', 'ge', 80)|list|length }}</h3>
                                             <p class="mb-0 text-muted">Excellent Matches (80%+)</p>
                                         </div>
                                     </div>
                                     <div class="col-md-4">
                                         <div class="p-3">
-                                            <h3 class="text-warning">{{ matches|selectattr('match_score', 'ge', 60)|selectattr('match_score', 'lt', 80)|list|length }}</h3>
+                                            <h3 class="text-warning">{{ matches|selectattr('detailed_match_score', 'ge', 60)|selectattr('detailed_match_score', 'lt', 80)|list|length }}</h3>
                                             <p class="mb-0 text-muted">Good Matches (60-79%)</p>
                                         </div>
                                     </div>
                                     <div class="col-md-4">
                                         <div class="p-3">
-                                            <h3 class="text-danger">{{ matches|selectattr('match_score', 'lt', 60)|list|length }}</h3>
+                                            <h3 class="text-danger">{{ matches|selectattr('detailed_match_score', 'lt', 60)|list|length }}</h3>
                                             <p class="mb-0 text-muted">Fair Matches (< 60%)</p>
                                         </div>
                                     </div>
