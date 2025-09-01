@@ -32,7 +32,7 @@ class JobMatcher:
         return text.strip()
 
     def extract_skills_from_job(self, job_description: str, job_requirements: str = "") -> List[str]:
-    """Extract skills mentioned in job description and requirements including internship positions"""
+        """Extract skills mentioned in job description and requirements including internship positions"""
         combined_text = f"{job_description} {job_requirements}".lower()
     
     # Enhanced skill keywords including internship-friendly terms
