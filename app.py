@@ -203,6 +203,17 @@ def calculate_realistic_match_score(job, user_skills):
     except Exception as e:
         logger.error(f"Error calculating match score: {e}")
         return 0
+# Add these imports if not already present
+from flask import send_from_directory
+
+# Add these routes anywhere in your app.py file
+@app.route('/sitemap.xml')
+def sitemap():
+    return send_from_directory('static', 'sitemap.xml', mimetype='application/xml')
+
+@app.route('/robots.txt')
+def robots():
+    return send_from_directory('static', 'robots.txt', mimetype='text/plain')
 
 @app.route('/debug-jobs')
 def debug_jobs():
