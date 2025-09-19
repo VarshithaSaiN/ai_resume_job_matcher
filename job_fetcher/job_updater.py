@@ -96,16 +96,16 @@ class JobUpdater:
             conn.close()
             return
 
-    jobs = []
+        jobs = []
     
     # Fetch from Remotive and Adzuna for each keyword
-    for kw in ["Python Developer", "Data Scientist", "Full Stack Developer"]:
-        try:
-            jobs.extend(fetch_remotive_jobs(kw, limit=10))
-            #jobs.extend(fetch_adzuna_jobs(kw, limit=10))
-        except Exception as e:
-            logger.error(f"Error fetching jobs for keyword '{kw}': {e}")
-            continue
+        for kw in ["Python Developer", "Data Scientist", "Full Stack Developer"]:
+            try:
+                jobs.extend(fetch_remotive_jobs(kw, limit=10))
+                #jobs.extend(fetch_adzuna_jobs(kw, limit=10))
+            except Exception as e:
+                logger.error(f"Error fetching jobs for keyword '{kw}': {e}")
+                continue
 
     # Insert logic with proper error handling
         new_count = 0
