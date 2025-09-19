@@ -1,22 +1,32 @@
+# Use official Python runtime
 FROM python:3.10-slim
 
+# Install system dependencies
+RUN apt-get update && \
+    apt-get install -y build-essential libpq-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# Set working directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    && rm -rf /var/lib/apt/lists/*
-
+# Copy and install Python dependencies
 COPY requirements.txt .
-RUN pip install --upgrade pip setuptools wheel
-RUN pip install -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Download spaCy model with error handling
-RUN python -m spacy download en_core_web_sm || echo "spaCy model download failed - will handle gracefully"
-
+# Copy all application files
 COPY . .
 
+# Expose Flask port
 EXPOSE 10000
 
-CMD ["gunicorn", "--bind", "0.0.0.0:10000", "app:app"]
+# Set environment variables
+ENV FLASK_ENV=production \
+    FLASK_APP=app.py \
+    FLASK_RUN_HOST=0.0.0.0 \
+    FLASK_RUN_PORT=10000
+
+# Ensure migrations or setup scripts run if needed
+# e.g., RUN python fix_database.py
+
+# Start the Gunicorn server
+CMD ["gunicorn", "--workers", "3", "--bind", "0.0.0.0:10000", "app:app"]
