@@ -29,4 +29,4 @@ ENV FLASK_ENV=production \
 # e.g., RUN python fix_database.py
 
 # Start the Gunicorn server
-CMD ["gunicorn", "--workers", "3", "--bind", "0.0.0.0:10000", "app:app"]
+CMD ["gunicorn", "--workers", "1", "--timeout", "120", "--bind", "0.0.0.0:10000", "app:app"]
