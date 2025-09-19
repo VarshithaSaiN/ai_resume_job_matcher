@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: ai-resume-job-matcher
+    env: docker
+    repo: https://github.com/VarshithaSaiN/ai_resume_job_matcher
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: your-database-name
+          property: connectionString
