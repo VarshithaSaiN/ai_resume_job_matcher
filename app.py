@@ -204,6 +204,22 @@ def calculate_realistic_match_score(job, user_skills):
     except Exception as e:
         logger.error(f"Error calculating match score: {e}")
         return 0
+from flask import send_from_directory
+
+@app.route("/init-database")
+def init_database():
+    try:
+        with open("schema.sql") as f:
+            schema_sql = f.read()
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(schema_sql)
+        conn.commit()
+        cur.close()
+        conn.close()
+        return "✅ Database initialized!"
+    except Exception as e:
+        return f"❌ Initialization error: {e}"
 # Add these imports if not already present
 from flask import send_from_directory
 @app.route('/google85221926df2ad0e3.html')
