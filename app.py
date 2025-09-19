@@ -70,8 +70,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Start background updater
-job_updater.start_background_updater(update_interval_hours=6)
-atexit.register(job_updater.stop_background_updater)
+#job_updater.start_background_updater(update_interval_hours=6)
+#atexit.register(job_updater.stop_background_updater)
 
 def get_db_connection():
     """Get PostgreSQL database connection"""
@@ -204,6 +204,31 @@ def calculate_realistic_match_score(job, user_skills):
     except Exception as e:
         logger.error(f"Error calculating match score: {e}")
         return 0
+def create_system_user():
+    conn = get_db_connection()
+    if conn:
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                INSERT INTO users (email, password, user_type, first_name, last_name, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (email) DO NOTHING
+            """, (
+                'system@jobmatcher.ai',
+                'dummy_hash',
+                'admin', 
+                'System',
+                'JobUpdater',
+                datetime.now()
+            ))
+            conn.commit()
+            print("System user created or already exists")
+        except Exception as e:
+            print(f"Error: {e}")
+        finally:
+            cursor.close()
+            conn.close()
+
 from flask import send_from_directory
 @app.route("/init-database")
 def init_database():
