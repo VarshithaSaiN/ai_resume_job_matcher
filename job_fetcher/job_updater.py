@@ -102,7 +102,7 @@ class JobUpdater:
     for kw in ["Python Developer", "Data Scientist", "Full Stack Developer"]:
         try:
             jobs.extend(fetch_remotive_jobs(kw, limit=10))
-            jobs.extend(fetch_adzuna_jobs(kw, limit=10))
+            #jobs.extend(fetch_adzuna_jobs(kw, limit=10))
         except Exception as e:
             logger.error(f"Error fetching jobs for keyword '{kw}': {e}")
             continue
