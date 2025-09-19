@@ -21,8 +21,15 @@ import secrets
 from ai_engine.resume_parser import ResumeParser
 from ai_engine.job_matcher import JobMatcher
 from flask_mail import Mail, Message
-import spacy
-nlp = spacy.load("en_core_web_sm")
+#import spacy
+#nlp = spacy.load("en_core_web_sm")
+nlp = None
+def get_nlp():
+    global nlp
+    if nlp is None:
+        import spacy
+        nlp = spacy.load("en_core_web_sm")
+    return nlp
 from dotenv import load_dotenv
 load_dotenv()  # This loads your .env file
 
