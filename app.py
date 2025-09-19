@@ -21,8 +21,8 @@ import secrets
 from ai_engine.resume_parser import ResumeParser
 from ai_engine.job_matcher import JobMatcher
 from flask_mail import Mail, Message
-# import spacy
-# nlp = spacy.load("en_core_web_sm")
+import spacy
+nlp = spacy.load("en_core_web_sm")
 from dotenv import load_dotenv
 load_dotenv()  # This loads your .env file
 
@@ -62,7 +62,6 @@ job_matcher = JobMatcher()
 
 # Initialize job updater and aggregator
 job_updater = JobUpdater(DB_CONFIG)
-job_updater.update_jobs_for_keywords()
 job_aggregator = JobAggregator()
 
 # Logger setup
@@ -244,6 +243,7 @@ def init_database():
         
     except Exception as e:
         return f"❌ Database initialization failed: {e}"
+job_updater.update_jobs_for_keywords()
 # Add these imports if not already present
 from flask import send_from_directory
 @app.route('/google85221926df2ad0e3.html')
