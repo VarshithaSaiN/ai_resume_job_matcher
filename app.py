@@ -62,7 +62,7 @@ job_matcher = JobMatcher()
 
 # Initialize job updater and aggregator
 job_updater = JobUpdater(DB_CONFIG)
-job_updater.update_jobs_for_keywords()
+# job_updater.update_jobs_for_keywords()
 job_aggregator = JobAggregator()
 
 # Logger setup
