@@ -49,10 +49,10 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 # Database config
 DB_CONFIG = {
-    'host': os.environ.get('DB_HOST', 'dpg-d2io66ur433s73e19fm0-a'),
-    'database': os.environ.get('DB_NAME', 'root_zjh6'),
-    'user': os.environ.get('DB_USER', 'root_zjh6_user'),
-    'password': os.environ.get('DB_PASSWORD', 'dTpIeWW6y892QArn2I9XOZGZNLp3lwVN'),
+    'host': os.environ.get('DB_HOST', 'dpg-d36gdbnfte5s73beqmng-a'),
+    'database': os.environ.get('DB_NAME', 'ai_resume_job_matcher_v2'),
+    'user': os.environ.get('DB_USER', 'ai_resume_job_matcher_v2_user'),
+    'password': os.environ.get('DB_PASSWORD', 'YxgrcyWMqKb7m0Y2IvTmURtaAOdoB2uj'),
     'port': os.environ.get('DB_PORT', '5432')
 }
 
@@ -209,101 +209,17 @@ from flask import send_from_directory
 @app.route("/init-database")
 def init_database():
     try:
-        # Embedded schema (replace the file reading approach)
-        schema_sql = """
--- PostgreSQL Database Schema for AI Resume Matcher
-
--- Users table
-CREATE TABLE IF NOT EXISTS users (
-    user_id SERIAL PRIMARY KEY,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password VARCHAR(255) NOT NULL,
-    user_type VARCHAR(20) DEFAULT 'job_seeker' CHECK (user_type IN ('job_seeker', 'employer', 'admin')),
-    first_name VARCHAR(100),
-    last_name VARCHAR(100),
-    reset_token VARCHAR(128),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Create trigger for updated_at automatic update
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
-
-CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
--- Resumes table
-CREATE TABLE IF NOT EXISTS resumes (
-    resume_id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(user_id) ON DELETE CASCADE,
-    original_filename VARCHAR(255),
-    file_path VARCHAR(500),
-    parsed_text TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TRIGGER update_resumes_updated_at BEFORE UPDATE ON resumes
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
--- Jobs table
-CREATE TABLE IF NOT EXISTS jobs (
-    id SERIAL PRIMARY KEY,
-    title VARCHAR(255) NOT NULL,
-    company VARCHAR(255) NOT NULL,
-    location VARCHAR(255),
-    description TEXT,
-    requirements TEXT,
-    salary_range VARCHAR(100),
-    external_url VARCHAR(500),
-    source VARCHAR(50) DEFAULT 'Manual',
-    status VARCHAR(20) DEFAULT 'active',
-    is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TRIGGER update_jobs_updated_at BEFORE UPDATE ON jobs
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
--- User login history table
-CREATE TABLE IF NOT EXISTS user_login_history (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(user_id) ON DELETE CASCADE,
-    login_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    ip_address VARCHAR(45),
-    user_agent TEXT
-);
-
--- Create indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-CREATE INDEX IF NOT EXISTS idx_resumes_user_id ON resumes(user_id);
-CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
-CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs(created_at);
-CREATE INDEX IF NOT EXISTS idx_login_history_user_id ON user_login_history(user_id);
-"""
-
-        # Execute the schema
+        with open("schema.sql") as f:
+            schema_sql = f.read()
         conn = get_db_connection()
-        if not conn:
-            return "❌ Database connection failed"
-            
-        cursor = conn.cursor()
-        cursor.execute(schema_sql)
+        cur = conn.cursor()
+        cur.execute(schema_sql)
         conn.commit()
-        cursor.close()
+        cur.close()
         conn.close()
-        
-        return "✅ Database initialized successfully!"
-        
+        return "✅ Database initialized!"
     except Exception as e:
-        return f"❌ Database initialization failed: {e}"
+        return f"❌ Initialization error: {e}"
 # Add these imports if not already present
 from flask import send_from_directory
 @app.route('/google85221926df2ad0e3.html')
