@@ -12,9 +12,6 @@ nltk==3.8.1
 python-dotenv==1.0.0
 gunicorn==21.2.0
 blis==0.7.9
-beautifulsoup4==4.12.2
+beautifulsoup4
 Flask-Mail
-
-
-
-
+https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.6.0/en_core_web_sm-3.6.0-py3-none-any.whl
