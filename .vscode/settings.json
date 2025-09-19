@@ -2,12 +2,12 @@
     "sqltools.connections": [
         {
             "previewLimit": 50,
-            "server": "postgresql://root_zjh6_user:dTpIeWW6y892QArn2I9XOZGZNLp3lwVN@dpg-d2io66ur433s73e19fm0-a/root_zjh6",
+            "server": "postgresql://ai_resume_job_matcher_v2_user:YxgrcyWMqKb7m0Y2IvTmURtaAOdoB2uj@dpg-d36gdbnfte5s73beqmng-a/ai_resume_job_matcher_v2",
             "port": 5342,
             "driver": "PostgreSQL",
-            "name": "root",
-            "database": "root_zjh6",
-            "username": "root_zjh6_user",
+            "name": "ai-resume-job-matcher-v2",
+            "database": "ai_resume_job_matcher_v2",
+            "username": "ai_resume_job_matcher_v2_user",
             "connectionTimeout": 10000
             "ssl": false
         }
