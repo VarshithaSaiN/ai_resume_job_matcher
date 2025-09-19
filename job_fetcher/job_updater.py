@@ -52,44 +52,109 @@ class JobUpdater:
             return 0
     
     def update_jobs_for_keywords(self, keywords_list=None):
+        """Updated method with proper error handling and system user creation"""
         conn = self.get_db_connection()
         if not conn:
             return
+
         cursor = conn.cursor()
-        jobs = []
-        # Fetch from Remotive and Adzuna for each keyword
-        for kw in ["Python Developer", "Data Scientist", "Full Stack Developer"]:
+    
+        # First, ensure system user exists
+        try:
+            cursor.execute(
+                "SELECT user_id FROM users WHERE email = %s",
+                ('system@jobmatcher.ai',)
+            )
+            system_user = cursor.fetchone()
+        
+            if not system_user:
+                # Create system user if it doesn't exist
+                cursor.execute("""
+                    INSERT INTO users (
+                        email, password, user_type,
+                        first_name, last_name, created_at
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    RETURNING user_id
+                """, (
+                    'system@jobmatcher.ai',
+                    'dummy_hash',
+                    'admin',
+                    'System',
+                    'JobUpdater', 
+                    datetime.now()
+                ))
+                system_user_id = cursor.fetchone()[0]
+                conn.commit()  # Commit the system user creation
+                logger.info("Created system user for job updates")
+            else:
+                system_user_id = system_user[0]
+            
+        except Exception as e:
+            logger.error(f"Error ensuring system user exists: {e}")
+            cursor.close()
+            conn.close()
+            return
+
+    jobs = []
+    
+    # Fetch from Remotive and Adzuna for each keyword
+    for kw in ["Python Developer", "Data Scientist", "Full Stack Developer"]:
+        try:
             jobs.extend(fetch_remotive_jobs(kw, limit=10))
             jobs.extend(fetch_adzuna_jobs(kw, limit=10))
-        # Insert logic remains the same
+        except Exception as e:
+            logger.error(f"Error fetching jobs for keyword '{kw}': {e}")
+            continue
+
+    # Insert logic with proper error handling
         new_count = 0
         for job in jobs:
-            url = job["external_url"]
-            cursor.execute(
-                "SELECT job_id FROM jobs WHERE title=%s AND company=%s AND source=%s",
-                (job["title"], job["company"], job["source"])
-            )
-            if cursor.fetchone() is None:
-                cursor.execute("""
-                    INSERT INTO jobs (employer_id, title, description, requirements,
-                                      location, company, source, external_url,
-                                      status, is_active, created_at)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'active',TRUE,%s)
-                """, (
-                    1,
-                    job["title"],
-                    job["description"],
-                    job["requirements"],
-                    job["location"],
-                    job["company"],
-                    job["source"],
-                    url,
-                    job["created_at"]
-                ))
-                new_count += 1
-        conn.commit()
-        cursor.close()
-        conn.close()
+            try:
+                url = job["external_url"]
+            
+                cursor.execute(
+                    "SELECT job_id FROM jobs WHERE title=%s AND company=%s AND source=%s",
+                    (job["title"], job["company"], job["source"])
+                )
+            
+                if cursor.fetchone() is None:
+                    cursor.execute("""
+                        INSERT INTO jobs (
+                            employer_id, title, description, requirements,
+                            location, company, source, external_url,
+                            status, is_active, created_at
+                        )
+                        VALUES (
+                            %s, %s, %s, %s, %s,
+                            %s, %s, %s, 'active', TRUE, %s
+                        )
+                    """, (
+                        system_user_id,               # Use the system user ID
+                        job["title"],
+                        job["description"],
+                        job["requirements"],
+                        job["location"],
+                        job["company"],
+                        job["source"],
+                        url,
+                        job["created_at"]
+                    ))
+                    new_count += 1
+                
+            except Exception as e:
+                logger.error(f"Error inserting job '{job.get('title','Unknown')}': {e}")
+                continue  # Continue with next job instead of failing completely
+
+        try:
+            conn.commit()
+            logger.info(f"Added {new_count} new jobs from Remotive & Adzuna.")
+        except Exception as e:
+            logger.error(f"Error committing job updates: {e}")
+            conn.rollback()
+        finally:
+            cursor.close()
+            conn.close()
         logger.info(f"Added {new_count} new jobs from Remotive & Adzuna.")
 
     def run_job_update_cycle(self):
