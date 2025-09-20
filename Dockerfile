@@ -1,32 +1,52 @@
-# Use official Python runtime
-FROM python:3.10-slim
+# Use multi-stage build for smaller image size
+FROM python:3.10-slim as base
 
-# Install system dependencies
+# Install system dependencies in one layer
 RUN apt-get update && \
-    apt-get install -y build-essential libpq-dev && \
-    rm -rf /var/lib/apt/lists/*
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        libpq-dev && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Set working directory
 WORKDIR /app
-RUN ls -la /app
-# Copy and install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy all application files
+# Copy requirements first for better Docker layer caching
+COPY requirements.txt .
+
+# Install Python dependencies with optimizations
+RUN pip install --no-cache-dir --compile --no-deps -r requirements.txt && \
+    find /usr/local -name '*.pyc' -delete && \
+    find /usr/local -name '__pycache__' -type d -exec rm -rf {} + || true
+
+# Copy application code
 COPY . .
 
-# Expose Flask port
+# Create non-root user for security
+RUN adduser --disabled-password --gecos '' --uid 1000 appuser && \
+    chown -R appuser:appuser /app
+USER appuser
+
+# Expose port
 EXPOSE 10000
 
-# Set environment variables
-ENV FLASK_ENV=production \
-    FLASK_APP=app.py \
-    FLASK_RUN_HOST=0.0.0.0 \
-    FLASK_RUN_PORT=10000
+# Environment variables
+ENV PYTHONPATH=/app \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    FLASK_ENV=production \
+    FLASK_APP=app.py
 
-# Ensure migrations or setup scripts run if needed
-# e.g., RUN python fix_database.py
-
-# Start the Gunicorn server
-CMD ["gunicorn", "--workers", "1", "--timeout", "120", "--bind", "0.0.0.0:10000", "app:app"]
+# Optimized Gunicorn configuration
+CMD ["gunicorn", \
+     "--workers", "1", \
+     "--threads", "4", \
+     "--worker-class", "gthread", \
+     "--timeout", "120", \
+     "--keep-alive", "5", \
+     "--max-requests", "1000", \
+     "--max-requests-jitter", "100", \
+     "--preload", \
+     "--bind", "0.0.0.0:10000", \
+     "app:app"]
