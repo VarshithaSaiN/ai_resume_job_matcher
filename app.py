@@ -78,14 +78,6 @@ job_aggregator = JobAggregator()
 # Logger setup
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-def send_async_email(app, msg):
-    with app.app_context():
-        mail.send(msg)
-
-def send_email(subject, recipients, body):
-    msg = Message(subject, recipients=recipients, body=body, sender=app.config['MAIL_USERNAME'])
-    Thread(target=send_async_email, args=(app, msg), daemon=True).start()
-
 # Start background updater
 if os.getenv("ENABLE_JOB_UPDATER","false").lower()=="true":
     job_updater.start_background_updater(update_interval_hours=6)
@@ -1097,22 +1089,21 @@ def forgot_password():
         if not email:
             flash("Please enter your email.", "danger")
             return render_template('forgot_password.html')
-
+        
         conn = get_db_connection()
         if not conn:
             flash("Database connection error.", "danger")
             return render_template('forgot_password.html')
-
+        
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
         user = cursor.fetchone()
-
         if not user:
             flash("Email not found.", "danger")
             cursor.close()
             conn.close()
             return render_template('forgot_password.html')
-
+        
         # Generate and store reset token
         reset_token = secrets.token_urlsafe(32)
         cursor.execute(
@@ -1122,7 +1113,7 @@ def forgot_password():
         conn.commit()
         cursor.close()
         conn.close()
-
+        
         # Define email subject and body
         subject = "AI Resume Matcher Password Reset"
         reset_url = url_for('reset_password_token', token=reset_token, _external=True)
@@ -1131,17 +1122,15 @@ def forgot_password():
             f"To reset your password, click the link below:\n{reset_url}\n\n"
             "If you did not request a password reset, please ignore this email."
         )
-
+        
         try:
-            # send_email is your threaded helper: send_email(subject, recipients, body)
             send_email(subject, [email], body)
             flash("Reset link sent to your email.", "success")
         except Exception as e:
             current_app.logger.error(f"Failed to send reset email: {e}")
             flash("Unable to send email right now. Please try again later.", "danger")
-
+        
         return redirect(url_for('login'))
-
     return render_template('forgot_password.html')
 
 @app.route('/reset_password', methods=['POST'])
