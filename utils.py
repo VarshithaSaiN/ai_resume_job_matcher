@@ -23,3 +23,14 @@ def strip_html_tags(text):
         # Fallback to regex if BeautifulSoup fails
         clean = re.compile('<.*?>')
         return re.sub(clean, '', text).strip()
+from threading import Thread
+from flask_mail import Message
+from your_app_module import mail, app
+
+def send_async_email(app, msg):
+    with app.app_context():
+        mail.send(msg)
+
+def send_email(subject, recipients, body):
+    msg = Message(subject, recipients=recipients, body=body, sender=app.config['MAIL_USERNAME'])
+    Thread(target=send_async_email, args=(app, msg), daemon=True).start()
