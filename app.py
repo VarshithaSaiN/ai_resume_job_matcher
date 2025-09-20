@@ -78,6 +78,13 @@ job_aggregator = JobAggregator()
 # Logger setup
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+def send_async_email(app, msg):
+    with app.app_context():
+        mail.send(msg)
+
+def send_email(subject, recipients, body):
+    msg = Message(subject, recipients=recipients, body=body, sender=app.config['MAIL_USERNAME'])
+    Thread(target=send_async_email, args=(app, msg), daemon=True).start()
 
 # Start background updater
 if os.getenv("ENABLE_JOB_UPDATER","false").lower()=="true":
