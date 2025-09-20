@@ -69,7 +69,7 @@ job_matcher = JobMatcher()
 
 # Initialize job updater and aggregator
 job_updater = JobUpdater(DB_CONFIG)
-# job_updater.update_jobs_for_keywords()
+job_updater.update_jobs_for_keywords()
 job_aggregator = JobAggregator()
 
 # Logger setup
@@ -77,10 +77,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Start background updater
-if os.getenv("ENABLE_JOB_UPDATER", "false").lower() == "true":
-    job_updater.start_background_updater(update_interval_hours=6)
-    import atexit
-    atexit.register(job_updater.stop_background_updater)
+job_updater.start_background_updater(update_interval_hours=6)
+import atexit
+atexit.register(job_updater.stop_background_updater)
 
 def get_db_connection():
     """Get PostgreSQL database connection"""
