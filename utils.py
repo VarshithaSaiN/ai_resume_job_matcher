@@ -1,8 +1,6 @@
 # utils.py
 import re
 from bs4 import BeautifulSoup
-from threading import Thread
-from flask_mail import Message
 from app import app,mail
 
 def strip_html_tags(text):
