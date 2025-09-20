@@ -25,7 +25,7 @@ def strip_html_tags(text):
         return re.sub(clean, '', text).strip()
 from threading import Thread
 from flask_mail import Message
-from your_app_module import mail, app
+from app import app,mail
 
 def send_async_email(app, msg):
     with app.app_context():
