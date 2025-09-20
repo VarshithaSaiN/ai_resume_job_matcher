@@ -78,20 +78,6 @@ job_aggregator = JobAggregator()
 # Logger setup
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-from threading import Thread
-
-def send_async_email(app, msg):
-    with app.app_context():
-        mail.send(msg)
-
-def send_email(subject, recipients, body):
-    msg = Message(subject, recipients=recipients, body=body)
-    Thread(target=send_async_email, args=(app, msg)).start()
-try:
-    send_email(subject, [user.email], body)
-except Exception as e:
-    logger.error(f"Failed to send reset email: {e}")
-    flash("Unable to send reset email at this time. Please try again later.", "error")
 
 # Start background updater
 if os.getenv("ENABLE_JOB_UPDATER","false").lower()=="true":
@@ -1091,6 +1077,12 @@ def delete_resume(resume_id):
         flash(f"Delete failed: {e}", "danger")
     return redirect(url_for('dashboard'))
 
+from flask import Flask, render_template, request, flash, redirect, url_for
+from flask_mail import Message
+import secrets
+import psycopg2.extras
+from utils import get_db_connection, send_email  # assume send_email is async helper
+
 @app.route('/forgot_password', methods=['GET', 'POST'])
 def forgot_password():
     if request.method == 'POST':
@@ -1098,33 +1090,51 @@ def forgot_password():
         if not email:
             flash("Please enter your email.", "danger")
             return render_template('forgot_password.html')
+
         conn = get_db_connection()
-        if conn:
-            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
-            user = cursor.fetchone()
-            if user:
-                reset_token = secrets.token_urlsafe(32)
-                cursor.execute("UPDATE users SET reset_token=%s WHERE email=%s", (reset_token, email))
-                conn.commit()
-                reset_url = url_for('reset_password_token', token=reset_token, _external=True)
-                msg = Message(
-                    "Password Reset Request",
-                    sender=app.config['MAIL_USERNAME'],
-                    recipients=[email]
-                )
-                msg.body = f"Hello,\n\nClick the link below to reset your password:\n{reset_url}\n\nIf you did not request this, ignore this email."
-                mail.send(msg)
-                flash("Reset link sent to your email.", "success")
-                cursor.close()
-                conn.close()
-                return redirect(url_for('login'))
-            else:
-                flash("Email not found.", "danger")
-                cursor.close()
-                conn.close()
-        else:
+        if not conn:
             flash("Database connection error.", "danger")
+            return render_template('forgot_password.html')
+
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
+        user = cursor.fetchone()
+
+        if not user:
+            flash("Email not found.", "danger")
+            cursor.close()
+            conn.close()
+            return render_template('forgot_password.html')
+
+        # Generate and store reset token
+        reset_token = secrets.token_urlsafe(32)
+        cursor.execute(
+            "UPDATE users SET reset_token=%s WHERE email=%s",
+            (reset_token, email)
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        # Define email subject and body
+        subject = "AI Resume Matcher Password Reset"
+        reset_url = url_for('reset_password_token', token=reset_token, _external=True)
+        body = (
+            f"Hello {user['first_name']},\n\n"
+            f"To reset your password, click the link below:\n{reset_url}\n\n"
+            "If you did not request a password reset, please ignore this email."
+        )
+
+        try:
+            # send_email is your threaded helper: send_email(subject, recipients, body)
+            send_email(subject, [email], body)
+            flash("Reset link sent to your email.", "success")
+        except Exception as e:
+            current_app.logger.error(f"Failed to send reset email: {e}")
+            flash("Unable to send email right now. Please try again later.", "danger")
+
+        return redirect(url_for('login'))
+
     return render_template('forgot_password.html')
 
 @app.route('/reset_password', methods=['POST'])
