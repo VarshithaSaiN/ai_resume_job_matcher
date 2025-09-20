@@ -1,8 +1,6 @@
 # utils.py
 import re
 from bs4 import BeautifulSoup
-from app import app,mail
-
 def strip_html_tags(text):
     """Remove HTML tags from text and return clean text"""
     if not text:
@@ -24,11 +22,3 @@ def strip_html_tags(text):
         # Fallback to regex if BeautifulSoup fails
         clean = re.compile('<.*?>')
         return re.sub(clean, '', text).strip()
-
-def send_async_email(app, msg):
-    with app.app_context():
-        mail.send(msg)
-
-def send_email(subject, recipients, body):
-    msg = Message(subject, recipients=recipients, body=body, sender=app.config['MAIL_USERNAME'])
-    Thread(target=send_async_email, args=(app, msg), daemon=True).start()
