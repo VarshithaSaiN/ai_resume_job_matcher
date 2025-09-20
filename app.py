@@ -46,8 +46,8 @@ app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USE_SSL'] = False
-app.config['MAIL_USERNAME'] = 'aijobmatcher@gmail.com'
-app.config['MAIL_PASSWORD'] = 'uzih uzvu hdwv puzy'  # Your actual app password
+app.config['MAIL_USERNAME'] = os.environ['MAIL_USERNAME'] 
+app.config['MAIL_PASSWORD'] = os.environ['MAIL_PASSWORD']   # Your actual app password
 app.config['MAIL_DEFAULT_SENDER'] = 'aijobmatcher@gmail.com'
 mail = Mail(app)
 
