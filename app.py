@@ -238,46 +238,6 @@ def create_system_user():
             cursor.close()
             conn.close()
 
-from flask import send_from_directory
-@app.route("/init-database")
-def init_database():
-    try:
-        import os
-        
-        # Try multiple possible paths
-        possible_paths = [
-            os.path.join(os.path.dirname(__file__), 'database', 'schema.sql'),
-            os.path.join('database', 'schema.sql'),
-            'schema.sql'
-        ]
-        
-        schema_sql = None
-        for path in possible_paths:
-            try:
-                with open(path, 'r') as f:
-                    schema_sql = f.read()
-                    break
-            except FileNotFoundError:
-                continue
-                
-        if not schema_sql:
-            return f"❌ Could not find schema.sql in any of these paths: {possible_paths}"
-        
-        # Execute the schema
-        conn = get_db_connection()
-        if not conn:
-            return "❌ Database connection failed"
-            
-        cursor = conn.cursor()
-        cursor.execute(schema_sql)
-        conn.commit()
-        cursor.close()
-        conn.close()
-        
-        return "✅ Database initialized successfully!"
-        
-    except Exception as e:
-        return f"❌ Database initialization failed: {e}"
 # Add these imports if not already present
 from flask import send_from_directory
 @app.route('/google85221926df2ad0e3.html')
