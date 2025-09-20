@@ -1,6 +1,9 @@
 # utils.py
 import re
 from bs4 import BeautifulSoup
+from threading import Thread
+from flask_mail import Message
+from app import app,mail
 
 def strip_html_tags(text):
     """Remove HTML tags from text and return clean text"""
@@ -23,9 +26,6 @@ def strip_html_tags(text):
         # Fallback to regex if BeautifulSoup fails
         clean = re.compile('<.*?>')
         return re.sub(clean, '', text).strip()
-from threading import Thread
-from flask_mail import Message
-from app import app,mail
 
 def send_async_email(app, msg):
     with app.app_context():
