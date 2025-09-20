@@ -1,39 +1,50 @@
 # import_data.py
 import psycopg2
 import json
+import hashlib
 
 DATABASE_URL = "postgresql://ai_resume_job_matcher_v2_user:YxgrcyWMqKb7m0Y2IvTmURtaAOdoB2uj@dpg-d36gdbnfte5s73beqmng-a.singapore-postgres.render.com/ai_resume_job_matcher_v2"
 
 def import_data():
     conn = psycopg2.connect(DATABASE_URL)
     cursor = conn.cursor()
+    # Create a default password hash for users who don't have passwords
+    default_password = hashlib.sha256("1234".encode()).hexdigest()
 
     with open("database_backup.json") as f:
         backup = json.load(f)
 
-    # Import users (adjust as needed; passwords must be reset)
+    # Import users - ADD PASSWORD COLUMN
     for u in backup["users"]:
         cursor.execute("""
-            INSERT INTO users (user_id,email,first_name,last_name,user_type,created_at)
-            VALUES (%s,%s,%s,%s,%s,%s)
+            INSERT INTO users (user_id, email, password, first_name, last_name, user_type, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (email) DO NOTHING
-        """, (u["user_id"], u["email"], u["first_name"], u["last_name"], u["user_type"], u["created_at"]))
+        """, (
+            u["user_id"], 
+            u["email"], 
+            default_password,  # Add default password
+            u["first_name"], 
+            u["last_name"], 
+            u["user_type"], 
+            u["created_at"]
+        ))
 
-    # Import resumes
+    # Import resumes (unchanged)
     for r in backup["resumes"]:
         cursor.execute("""
-            INSERT INTO resumes (resume_id,user_id,original_filename,parsed_text,created_at)
-            VALUES (%s,%s,%s,%s,%s)
+            INSERT INTO resumes (resume_id, user_id, original_filename, parsed_text, created_at)
+            VALUES (%s, %s, %s, %s, %s)
             ON CONFLICT (resume_id) DO NOTHING
         """, (r["resume_id"], r["user_id"], r["original_filename"], r["parsed_text"], r["created_at"]))
 
-    # Import jobs if desired (optional)
+    # Import jobs (unchanged)
     for j in backup["jobs"]:
         cursor.execute("""
-            INSERT INTO jobs (id,title,company,location,description,requirements,external_url,source,created_at)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
-            ON CONFLICT (id) DO NOTHING
-        """, (j["id"], j["title"], j["company"], j["location"], j["description"], j["requirements"], j["external_url"], j["source"], j["created_at"]))
+            INSERT INTO jobs (title, company, location, description, requirements, external_url, source, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT DO NOTHING
+        """, (j["title"], j["company"], j["location"], j["description"], j["requirements"], j["external_url"], j["source"], j["created_at"]))
 
     conn.commit()
     cursor.close()
