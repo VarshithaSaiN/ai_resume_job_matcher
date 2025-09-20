@@ -9,7 +9,7 @@ def import_data():
     conn = psycopg2.connect(DATABASE_URL)
     cursor = conn.cursor()
     # Create a default password hash for users who don't have passwords
-    default_password = hashlib.sha256("1234".encode()).hexdigest()
+    default_password = "1234"
 
     with open("database_backup.json") as f:
         backup = json.load(f)
