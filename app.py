@@ -46,13 +46,12 @@ app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USE_SSL'] = False
+app.config['MAIL_USERNAME'] = 'aijobmatcher@gmail.com'
+app.config['MAIL_PASSWORD'] = 'uzih uzvu hdwv puzy'  # Your actual app password
 app.config['MAIL_USERNAME'] = os.environ['MAIL_USERNAME'] 
 app.config['MAIL_PASSWORD'] = os.environ['MAIL_PASSWORD']   # Your actual app password
 app.config['MAIL_DEFAULT_SENDER'] = 'aijobmatcher@gmail.com'
-import socket
-socket.setdefaulttimeout(30)  # 30 seconds instead of default 10
 mail = Mail(app)
-
 
 # Ensure upload directory exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -78,6 +77,7 @@ job_aggregator = JobAggregator()
 # Logger setup
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 # Start background updater
 if os.getenv("ENABLE_JOB_UPDATER","false").lower()=="true":
     job_updater.start_background_updater(update_interval_hours=6)
@@ -156,7 +156,7 @@ def clean_html_description(description):
     """Remove HTML tags and decode HTML entities from job description"""
     if not description:
         return ""
-    
+
     # Remove HTML tags
     clean = re.sub(r'<[^>]+>', '', description)
     # Decode HTML entities like &amp; &lt; &gt;
@@ -169,49 +169,49 @@ def calculate_realistic_match_score(job, user_skills):
     """Calculate realistic match score based on actual skill overlap"""
     if not user_skills:
         return 0
-    
+
     try:
         # Combine job text for analysis
         job_text = f"{job.get('title', '')} {job.get('description', '')} {job.get('requirements', '')}".lower()
-        
+
         # Convert skills to lowercase for matching
         user_skills_lower = [skill.lower().strip() for skill in user_skills]
-        
+
         # Find matching skills
         matched_skills = []
         for skill in user_skills_lower:
             if skill in job_text and len(skill) > 2:  # Avoid matching very short words
                 matched_skills.append(skill)
-        
+
         # Calculate percentage based on matched skills
         if len(user_skills_lower) == 0:
             return 0
-            
+
         base_score = (len(matched_skills) / len(user_skills_lower)) * 100
-        
+
         # Add bonus for exact title matches
         title_lower = job.get('title', '').lower()
         title_bonus = 0
         for skill in user_skills_lower:
             if skill in title_lower:
                 title_bonus += 5  # 5% bonus per skill in title
-        
+
         # Add bonus for company/role relevance
         relevance_bonus = 0
         tech_keywords = ['developer', 'engineer', 'programmer', 'analyst', 'manager', 'scientist']
         for keyword in tech_keywords:
             if keyword in title_lower:
                 relevance_bonus += 2
-        
+
         # Final score calculation
         final_score = min(base_score + title_bonus + relevance_bonus, 100)
-        
+
         # Ensure minimum realistic scores
         if matched_skills and final_score < 10:
             final_score = 10 + (len(matched_skills) * 5)
-        
+
         return round(final_score, 1)
-        
+
     except Exception as e:
         logger.error(f"Error calculating match score: {e}")
         return 0
@@ -261,16 +261,16 @@ def debug_jobs():
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cursor.execute("SELECT COUNT(*) as total FROM jobs")
         total = cursor.fetchone()['total']
-        
+
         cursor.execute("SELECT COUNT(*) as active FROM jobs WHERE status='active' AND is_active=TRUE")
         active = cursor.fetchone()['active']
-        
+
         cursor.execute("SELECT COUNT(*) as non_manual FROM jobs WHERE source != 'Manual' AND status='active'")
         non_manual = cursor.fetchone()['non_manual']
-        
+
         cursor.close()
         conn.close()
-        
+
         return f"Total jobs: {total}, Active: {active}, Non-manual: {non_manual}"
     return "Database connection failed"
 
@@ -301,12 +301,12 @@ def test_jobs():
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cursor.execute("SELECT COUNT(*) as count FROM jobs WHERE status='active' AND is_active=TRUE")
         job_count = cursor.fetchone()['count']
-        
+
         cursor.execute("SELECT title, company, location FROM jobs WHERE status='active' AND is_active=TRUE LIMIT 10")
         jobs = cursor.fetchall()
         cursor.close()
         conn.close()
-        
+
         html = f"<h2>Database Test Results</h2>"
         html += f"<p><strong>Total active jobs:</strong> {job_count}</p>"
         html += f"<h3>Sample Jobs:</h3><ul>"
@@ -316,7 +316,7 @@ def test_jobs():
         html += f"<p><a href='/search-jobs'>Test Job Search</a></p>"
         html += f"<p><a href='/jobs/search-personalized'>Test Personalized Search</a></p>"
         return html
-    
+
     return "Database connection failed"
 
 @app.route('/admin/statistics')
@@ -324,13 +324,13 @@ def admin_statistics():
     if 'user_id' not in session or session.get('user_type') != 'admin':
         flash("Access denied: Admins only.", "danger")
         return redirect(url_for('login'))
-    
+
     conn = get_db_connection()
     statistics = []
-    
+
     if conn:
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        
+
         try:
             # Get user statistics with login count and resume count
             cursor.execute("""
@@ -356,16 +356,16 @@ def admin_statistics():
                 WHERE u.user_type != 'admin'
                 ORDER BY u.created_at DESC
             """)
-            
+
             statistics = cursor.fetchall()
-            
+
         except Exception as e:
             logger.error(f"Error fetching admin statistics: {e}")
             flash(f"Error fetching statistics: {e}", "danger")
         finally:
             cursor.close()
             conn.close()
-    
+
     return render_template('admin_statistics.html', statistics=statistics)
 
 @app.route('/')
@@ -410,14 +410,14 @@ def get_filtered_jobs_for_user(user_skills, search_query="", location_filter="",
     """Get jobs filtered and matched for user skills with proper scoring"""
     if not user_skills:
         return []
-    
+
     try:
         conn = get_db_connection()
         if not conn:
             return []
-            
+
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        
+
         base_query = """
             SELECT * FROM jobs 
             WHERE status='active' AND is_active=TRUE 
@@ -432,46 +432,46 @@ def get_filtered_jobs_for_user(user_skills, search_query="", location_filter="",
             base_query += " AND (title ILIKE %s OR description ILIKE %s OR company ILIKE %s)"
             like_pattern = f"%{search_query}%"
             params.extend([like_pattern, like_pattern, like_pattern])
-            
+
         if location_filter:
             base_query += " AND location ILIKE %s"
             params.append(f"%{location_filter}%")
 
         base_query += " ORDER BY created_at DESC"
-        
+
         cursor.execute(base_query, params)
         jobs = cursor.fetchall()
         matched_jobs = []
-        
+
         user_skills_lower = [skill.lower() for skill in user_skills]
-        
+
         for job in jobs:
             job_text = f"{job.get('title', '')} {job.get('description', '')} {job.get('requirements', '')}".lower()
-            
+
             # Find matching skills
             matched_skills = []
             for skill in user_skills_lower:
                 if skill in job_text and len(skill) > 2:
                     matched_skills.append(skill)
-            
+
             # Only include jobs with at least 1 skill match
             if matched_skills:
                 # Calculate realistic match score
                 match_score = calculate_realistic_match_score(job, user_skills)
-                
+
                 job_dict = dict(job)
                 job_dict['match_score'] = match_score
                 job_dict['matched_skills'] = matched_skills
                 job_dict['skill_matches'] = len(matched_skills)
                 matched_jobs.append(job_dict)
-        
+
         # Sort by match score (highest first)
         matched_jobs.sort(key=lambda x: x['match_score'], reverse=True)
-        
+
         cursor.close()
         conn.close()
         return matched_jobs[:limit]
-        
+
     except Exception as e:
         logger.error(f"Error in get_filtered_jobs_for_user: {e}")
         return []
@@ -525,31 +525,31 @@ def login():
     if request.method == 'POST':
         email = request.form['email']
         password = request.form['password']
-        
+
         conn = get_db_connection()
         if conn:
             cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
             user = cursor.fetchone()
             conn.close()
-            
+
             if not user:
                 flash("Email not found. Please register first.", "danger")
             elif check_password_hash(user['password'], password):
                 session['user_id'] = user['user_id']
                 session['user_name'] = user['first_name']
                 session['user_type'] = user['user_type']
-                
+
                 # Track login for statistics - NEW LINE
                 track_user_login(user['user_id'])
-                
+
                 flash("Login successful!", "success")
                 return redirect(url_for('dashboard'))
             else:
                 flash("Incorrect password.", "danger")
         else:
             flash("Database connection error.", "danger")
-    
+
     return render_template('login.html')
 
 @app.route('/logout')
@@ -615,7 +615,7 @@ def dashboard():
                 for job in job_list:
                     # Use the realistic match score calculation
                     match_score = calculate_realistic_match_score(job, user_skills)
-                    
+
                     # Enhanced scoring with JobMatcher if available
                     detailed_score = match_score
                     if job_matcher:
@@ -628,12 +628,12 @@ def dashboard():
                             detailed_score = result.get('final_score', match_score)
                         except Exception:
                             pass
-                    
+
                     enhanced_jobs.append({
                         'job': job,
                         'detailed_match_score': detailed_score
                     })
-                
+
                 # Get the highest detailed match score
                 best_match_score = max(job.get('detailed_match_score', 0) for job in enhanced_jobs)
             else:
@@ -642,7 +642,7 @@ def dashboard():
             job_list = []
             matching_jobs_count = 0
             best_match_score = 0
-            
+
         return render_template(
             'dashboard.html',
             resumes=resumes,
@@ -721,17 +721,17 @@ def jobs_search():
     search_query = request.args.get('keywords', '').strip()
     location_filter = request.args.get('location', '').strip()
     source_filter = request.args.get('source', '').strip()
-    
+
     # Get jobs without user skills filter for general search
     jobs = get_filtered_jobs_for_user([], search_query, location_filter, source_filter)
-    
+
     # Add search relevance scoring for general search
     for job in jobs:
         job['relevance_score'] = calculate_search_relevance(job, search_query)
-    
+
     # Sort by relevance for general search
     jobs.sort(key=lambda x: x.get('relevance_score', 0), reverse=True)
-    
+
     return render_template('job_search.html', 
                          jobs=jobs, 
                          search_query=search_query,
@@ -743,11 +743,11 @@ def personalized_jobs_search():
     """Personalized job search route"""
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+
     search_query = request.args.get('keywords', '').strip()
     location_filter = request.args.get('location', '').strip()
     source_filter = request.args.get('source', '').strip()
-    
+
     # Get user skills
     user_skills = []
     conn = get_db_connection()
@@ -764,10 +764,10 @@ def personalized_jobs_search():
                 user_skills = []
         cursor.close()
         conn.close()
-    
+
     # Get personalized jobs
     jobs = get_filtered_jobs_for_user(user_skills, search_query, location_filter, source_filter)
-    
+
     return render_template('job_search_personalized.html', 
                          jobs=jobs, 
                          user_skills=user_skills,
@@ -836,7 +836,7 @@ def match_jobs(resume_id):
 
                 # Calculate realistic match score based on skills
                 match_score = calculate_realistic_match_score(job, skills)
-                
+
                 # Enhanced scoring with JobMatcher if available
                 detailed_score = match_score
                 if job_matcher:
@@ -881,15 +881,15 @@ def match_jobs(resume_id):
 def search_jobs():
     query = request.args.get('q', '').strip()
     location = request.args.get('location', '').strip()
-    
+
     conn = get_db_connection()
     jobs = []
     total = 0
     user_resume_id = None
-    
+
     if conn:
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        
+
         # Get user's latest resume ID if logged in
         if 'user_id' in session:
             try:
@@ -920,25 +920,25 @@ def search_jobs():
             base_query += " AND (title ILIKE %s OR description ILIKE %s OR company ILIKE %s)"
             like_pattern = f"%{query}%"
             params.extend([like_pattern, like_pattern, like_pattern])
-            
+
         if location:
             base_query += " AND location ILIKE %s"
             params.append(f"%{location}%")
-            
+
         base_query += " ORDER BY created_at DESC LIMIT 50"
 
         try:
             cursor.execute(base_query, params)
             jobs = cursor.fetchall()
-            
+
             # Clean HTML from descriptions
             for job in jobs:
                 if job.get('description'):
                     job['description'] = clean_html_description(job['description'])
-            
+
             total = len(jobs)
             logger.info(f"Found {total} jobs for query: '{query}', location: '{location}'")
-            
+
         except Exception as e:
             logger.error(f"Error searching jobs: {e}")
             flash("Error searching jobs. Please try again.", "danger")
@@ -994,11 +994,11 @@ def cleanup_jobs():
     if 'user_id' not in session or session.get('user_type') != 'admin':
         flash("Access denied.", "danger")
         return redirect(url_for('login'))
-    
+
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         cursor.execute("""
             DELETE FROM jobs 
             WHERE status = 'closed' OR is_active = FALSE
@@ -1010,16 +1010,16 @@ def cleanup_jobs():
             OR description LIKE '%Job closed%'
             OR description LIKE '%Hiring complete%'
         """)
-        
+
         deleted_count = cursor.rowcount
         conn.commit()
         cursor.close()
         conn.close()
-        
+
         flash(f"{deleted_count} old/closed jobs cleaned up.", "success")
     except Exception as e:
         flash(f"Cleanup failed: {e}", "danger")
-    
+
     return redirect(url_for('admin_dashboard'))
 @app.route('/admin/cleanup_manual_jobs', methods=['POST'])
 def cleanup_manual_jobs():
@@ -1076,12 +1076,6 @@ def delete_resume(resume_id):
         flash(f"Delete failed: {e}", "danger")
     return redirect(url_for('dashboard'))
 
-from flask import Flask, render_template, request, flash, redirect, url_for
-from flask_mail import Message
-import secrets
-import psycopg2.extras
-from utils import get_db_connection, send_email  # assume send_email is async helper
-
 @app.route('/forgot_password', methods=['GET', 'POST'])
 def forgot_password():
     if request.method == 'POST':
@@ -1089,48 +1083,33 @@ def forgot_password():
         if not email:
             flash("Please enter your email.", "danger")
             return render_template('forgot_password.html')
-        
         conn = get_db_connection()
-        if not conn:
+        if conn:
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
+            user = cursor.fetchone()
+            if user:
+                reset_token = secrets.token_urlsafe(32)
+                cursor.execute("UPDATE users SET reset_token=%s WHERE email=%s", (reset_token, email))
+                conn.commit()
+                reset_url = url_for('reset_password_token', token=reset_token, _external=True)
+                msg = Message(
+                    "Password Reset Request",
+                    sender=app.config['MAIL_USERNAME'],
+                    recipients=[email]
+                )
+                msg.body = f"Hello,\n\nClick the link below to reset your password:\n{reset_url}\n\nIf you did not request this, ignore this email."
+                mail.send(msg)
+                flash("Reset link sent to your email.", "success")
+                cursor.close()
+                conn.close()
+                return redirect(url_for('login'))
+            else:
+                flash("Email not found.", "danger")
+                cursor.close()
+                conn.close()
+        else:
             flash("Database connection error.", "danger")
-            return render_template('forgot_password.html')
-        
-        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
-        user = cursor.fetchone()
-        if not user:
-            flash("Email not found.", "danger")
-            cursor.close()
-            conn.close()
-            return render_template('forgot_password.html')
-        
-        # Generate and store reset token
-        reset_token = secrets.token_urlsafe(32)
-        cursor.execute(
-            "UPDATE users SET reset_token=%s WHERE email=%s",
-            (reset_token, email)
-        )
-        conn.commit()
-        cursor.close()
-        conn.close()
-        
-        # Define email subject and body
-        subject = "AI Resume Matcher Password Reset"
-        reset_url = url_for('reset_password_token', token=reset_token, _external=True)
-        body = (
-            f"Hello {user['first_name']},\n\n"
-            f"To reset your password, click the link below:\n{reset_url}\n\n"
-            "If you did not request a password reset, please ignore this email."
-        )
-        
-        try:
-            send_email(subject, [email], body)
-            flash("Reset link sent to your email.", "success")
-        except Exception as e:
-            current_app.logger.error(f"Failed to send reset email: {e}")
-            flash("Unable to send email right now. Please try again later.", "danger")
-        
-        return redirect(url_for('login'))
     return render_template('forgot_password.html')
 
 @app.route('/reset_password', methods=['POST'])
