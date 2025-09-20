@@ -49,7 +49,10 @@ app.config['MAIL_USE_SSL'] = False
 app.config['MAIL_USERNAME'] = os.environ['MAIL_USERNAME'] 
 app.config['MAIL_PASSWORD'] = os.environ['MAIL_PASSWORD']   # Your actual app password
 app.config['MAIL_DEFAULT_SENDER'] = 'aijobmatcher@gmail.com'
+import socket
+socket.setdefaulttimeout(30)  # 30 seconds instead of default 10
 mail = Mail(app)
+
 
 # Ensure upload directory exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -75,6 +78,20 @@ job_aggregator = JobAggregator()
 # Logger setup
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+from threading import Thread
+
+def send_async_email(app, msg):
+    with app.app_context():
+        mail.send(msg)
+
+def send_email(subject, recipients, body):
+    msg = Message(subject, recipients=recipients, body=body)
+    Thread(target=send_async_email, args=(app, msg)).start()
+try:
+    send_email(subject, [user.email], body)
+except Exception as e:
+    logger.error(f"Failed to send reset email: {e}")
+    flash("Unable to send reset email at this time. Please try again later.", "error")
 
 # Start background updater
 if os.getenv("ENABLE_JOB_UPDATER","false").lower()=="true":
