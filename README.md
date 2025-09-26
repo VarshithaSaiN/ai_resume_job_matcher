@@ -87,13 +87,6 @@ The application supports integration with job boards:
 4. **Apply**: Apply to jobs directly through the platform
 5. **Track Progress**: Monitor application status in dashboard
 
-## 🚀 Deployment
-
-### Render.com
-1. Connect your GitHub repository
-2. Set environment variables in Render dashboard
-3. Deploy using the provided Dockerfile
-
 ## 👨‍💻 Author
 
 **Varshitha Sai N**
