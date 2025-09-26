@@ -2,7 +2,7 @@
 
 An intelligent web application that uses AI and machine learning to parse resumes and match candidates with relevant job opportunities. Built with Flask, spaCy, and scikit-learn to provide personalized job recommendations based on skills, experience, and qualifications.
 
-![AI Resume Job Matcher](<img src="screenshots/homepage.png" alt="Homepage" width="600">)
+<img src="screenshots/homepage.png" alt="Homepage" width="500">
 
 
 ## ✨ Features
@@ -13,7 +13,7 @@ An intelligent web application that uses AI and machine learning to parse resume
 - **Smart Job Matching**: Get personalized job recommendations with match scores
 - **Dashboard**: Track applications and view matched jobs
 
-![Dashboard Screenshot](screenshots/Dashboard.png)
+<img src="screenshots/Dashboard.png" alt="Dashboard" width="500">
 
 ## 🛠️ Technology Stack
 
@@ -60,19 +60,19 @@ ai_resume_job_matcher/
 ## 📸 Screenshots
 
 ### Register Page
-![Register](screenshots/register.png)
+<img src="screenshots/register.png" alt="Register" width="500">
 
 ### Login Page
-![Login](screenshots/login.png)
+<img src="screenshots/login.png" alt="Login" width="500">
 
 ### Search Jobs
-![Register](screenshots/search_jobs.png)
+<img src="screenshots/search_jobs.png" alt="Search Jobs" width="500">
 
 ### Resume Upload
-![Resume Upload](screenshots/upload.png)
+<img src="screenshots/upload.png" alt="Upload" width="500">
 
 ### Job Matches
-![Job Matches](screenshots/matches.png)
+<img src="screenshots/matches.png" alt="Matches" width="500">
 
 ## 🤝 API Integration
 
