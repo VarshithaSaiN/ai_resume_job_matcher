@@ -2,7 +2,8 @@
 
 An intelligent web application that uses AI and machine learning to parse resumes and match candidates with relevant job opportunities. Built with Flask, spaCy, and scikit-learn to provide personalized job recommendations based on skills, experience, and qualifications.
 
-![AI Resume Job Matcher](screenshots/homepage.png)
+![AI Resume Job Matcher](<img src="screenshots/homepage.png" alt="Homepage" width="600">)
+
 
 ## ✨ Features
 
@@ -32,28 +33,28 @@ An intelligent web application that uses AI and machine learning to parse resume
 
 ## 📁 Project Structure
 
-ai_resume_job_matcher/
-├── app.py # Main Flask application
-├── requirements.txt # Python dependencies
-├── Dockerfile # Docker configuration
-├── schema.sql # Database schema
-├── templates/ # HTML templates
-│ ├── base.html
-│ ├── index.html
-│ ├── dashboard.html
-│ ├── login.html
-│ └── ...
-├── static/ # CSS, JS, images
-│ ├── css/
-│ └── js/
-├── job_fetcher/ # Job data fetching modules
-│ ├── job_sources.py
-│ ├── job_updater.py
-│ └── api_sources.py
-├── ai_engine/ # AI/ML processing
-│ ├── job_matcher.py
-│ └── resume_parser.py
-└── utils.py # Utility functions
+ai_resume_job_matcher/                                                                                                                                                       
+├── app.py # Main Flask application                                                                                                                                          
+├── requirements.txt # Python dependencies                                                                                                                                   
+├── Dockerfile # Docker configuration                                                                                                                                        
+├── schema.sql # Database schema                                                                                                                                             
+├── templates/ # HTML templates                                                                                                                                              
+│ ├── base.html                                                                                                                                                              
+│ ├── index.html                                                                                                                                                             
+│ ├── dashboard.html                                                                                                                                                         
+│ ├── login.html                                                                                                                                                             
+│ └── ...                                                                                                                                                                    
+├── static/ # CSS, JS, images                                                                                                                                                
+│ ├── css/                                                                                                                                                                  
+│ └── js/                                                                                                                                                                    
+├── job_fetcher/ # Job data fetching modules                                                                                                                                 
+│ ├── job_sources.py                                                                                                                                                         
+│ ├── job_updater.py                                                                                                                                                         
+│ └── api_sources.py                                                                                                                                                         
+├── ai_engine/ # AI/ML processing                                                                                                                                            
+│ ├── job_matcher.py                                                                                                                                                         
+│ └── resume_parser.py                                                                                                                                                       
+└── utils.py # Utility functions                                                                                                                                             
 
 
 ## 📸 Screenshots
