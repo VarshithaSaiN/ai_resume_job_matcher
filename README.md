@@ -22,14 +22,12 @@ An intelligent web application that uses AI and machine learning to parse resume
 - **AI/ML**: spaCy, scikit-learn, NLTK
 - **Frontend**: HTML5, CSS3, JavaScript, Bootstrap
 - **Document Processing**: PyPDF2, python-docx
-- **Deployment**: Docker, Gunicorn
 - **Email**: Flask-Mail for notifications
 
 ## 📋 Prerequisites
 
 - Python 3.8+
 - PostgreSQL
-- Docker (optional)
 
 ## 📁 Project Structure
 
