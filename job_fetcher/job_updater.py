@@ -114,7 +114,7 @@ class JobUpdater:
                 url = job["external_url"]
             
                 cursor.execute(
-                    "SELECT job_id FROM jobs WHERE title=%s AND company=%s AND source=%s",
+                    "SELECT job_id FROM jobs WHERE external_url = %s",
                     (job["title"], job["company"], job["source"])
                 )
             
