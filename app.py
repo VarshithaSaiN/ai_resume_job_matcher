@@ -21,8 +21,11 @@ import secrets
 from ai_engine.resume_parser import ResumeParser
 from ai_engine.job_matcher import JobMatcher
 from flask_mail import Mail, Message
+from dotenv import load_dotenv
+load_dotenv()
 #import spacy
 #nlp = spacy.load("en_core_web_sm")
+
 nlp = None
 def get_nlp():
     global nlp
@@ -46,8 +49,6 @@ app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USE_SSL'] = False
-app.config['MAIL_USERNAME'] = 'aijobmatcher@gmail.com'
-app.config['MAIL_PASSWORD'] = 'uzih uzvu hdwv puzy'  # Your actual app password
 app.config['MAIL_USERNAME'] = os.environ['MAIL_USERNAME'] 
 app.config['MAIL_PASSWORD'] = os.environ['MAIL_PASSWORD']   # Your actual app password
 app.config['MAIL_DEFAULT_SENDER'] = 'aijobmatcher@gmail.com'
@@ -58,11 +59,11 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 # Database config
 DB_CONFIG = {
-    'host': os.environ.get('DB_HOST', 'dpg-d36gdbnfte5s73beqmng-a'),
-    'database': os.environ.get('DB_NAME', 'ai_resume_job_matcher_v2'),
-    'user': os.environ.get('DB_USER', 'ai_resume_job_matcher_v2_user'),
-    'password': os.environ.get('DB_PASSWORD', 'YxgrcyWMqKb7m0Y2IvTmURtaAOdoB2uj'),
-    'port': os.environ.get('DB_PORT', '5432')
+    'host': os.getenv('DB_HOST', 'localhost'),
+    'database': os.getenv('DB_NAME'),
+    'user': os.getenv('DB_USER'),
+    'password': os.getenv('DB_PASSWORD'),
+    'port': os.getenv('DB_PORT', '5432')
 }
 
 # Initialize AI components
@@ -92,25 +93,37 @@ def get_db_connection():
     except Error as e:
         logger.error(f"Error connecting to DB: {e}")
         return None
-def test_database_connection():
-    """Test database connection and verify tables exist"""
+def test_db_connection():
     try:
         conn = get_db_connection()
-        if conn:
-            cursor = conn.cursor()
-            # Test if users table exists
-            cursor.execute("SELECT COUNT(*) FROM users;")
-            count = cursor.fetchone()
-            cursor.close()
-            conn.close()
-            logger.info(f"Database connection successful. Users table has {count[0]} rows.")
-            return True
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables
+                WHERE table_name = 'users'
+            );
+        """)
+
+        exists = cur.fetchone()[0]
+
+        if not exists:
+            raise Exception("Users table does not exist. Run schema.sql")
+
+        cur.execute("SELECT COUNT(*) FROM users;")
+        cur.fetchone()
+
+        cur.close()
+        conn.close()
+        return True
+
     except Exception as e:
         logger.error(f"Database connection test failed: {e}")
         return False
 
+
 # Add this before your app routes
-if not test_database_connection():
+if not test_db_connection():
     logger.error("Database connection failed. Please check your database setup.")
 
 def allowed_file(filename):
@@ -595,10 +608,21 @@ def dashboard():
 
             if resume and resume.get('parsed_text'):
                 try:
-                    parsed = json.loads(resume['parsed_text'])
+                    parsed_text = resume['parsed_text']
+
+                    if isinstance(parsed_text, str):
+                        parsed = json.loads(parsed_text)
+                    elif isinstance(parsed_text, dict):
+                        parsed = parsed_text
+                    else:
+                        parsed = {}
+
                     user_skills = parsed.get('skills', [])
-                except (json.JSONDecodeError, KeyError):
+
+                except Exception as e:
+                    logger.error(f"Error parsing resume JSON: {e}")
                     user_skills = []
+
 
             cursor.close()
             conn.close()
@@ -718,25 +742,66 @@ def upload_resume():
 @app.route('/jobs/search')
 def jobs_search():
     """General job search route"""
+
     search_query = request.args.get('keywords', '').strip()
     location_filter = request.args.get('location', '').strip()
     source_filter = request.args.get('source', '').strip()
 
-    # Get jobs without user skills filter for general search
-    jobs = get_filtered_jobs_for_user([], search_query, location_filter, source_filter)
+    conn = get_db_connection()
+    jobs = []
 
-    # Add search relevance scoring for general search
-    for job in jobs:
-        job['relevance_score'] = calculate_search_relevance(job, search_query)
+    if conn:
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
-    # Sort by relevance for general search
-    jobs.sort(key=lambda x: x.get('relevance_score', 0), reverse=True)
+        query_sql = """
+            SELECT *
+            FROM jobs
+            WHERE status = 'active'
+              AND is_active = TRUE
+        """
+        params = []
 
-    return render_template('job_search.html', 
-                         jobs=jobs, 
-                         search_query=search_query,
-                         location_filter=location_filter,
-                         source_filter=source_filter)
+        if search_query:
+            query_sql += """
+                AND (
+                    title ILIKE %s
+                    OR description ILIKE %s
+                    OR company ILIKE %s
+                )
+            """
+            like = f"%{search_query}%"
+            params.extend([like, like, like])
+
+        if location_filter:
+            query_sql += " AND location ILIKE %s"
+            params.append(f"%{location_filter}%")
+
+        if source_filter:
+            query_sql += " AND source = %s"
+            params.append(source_filter)
+
+        query_sql += " ORDER BY created_at DESC LIMIT 50"
+
+        cursor.execute(query_sql, params)
+        jobs = cursor.fetchall()
+
+        cursor.close()
+        conn.close()
+
+    # Optional relevance boost
+    if search_query:
+        for job in jobs:
+            job["relevance_score"] = calculate_search_relevance(job, search_query)
+
+        jobs.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
+
+    return render_template(
+        "job_search.html",
+        jobs=jobs,
+        search_query=search_query,
+        location_filter=location_filter,
+        source_filter=source_filter
+    )
 
 @app.route('/jobs/search-personalized')
 def personalized_jobs_search():
@@ -822,7 +887,16 @@ def match_jobs(resume_id):
 
         if resume and resume.get('parsed_text'):
             try:
-                skills = json.loads(resume['parsed_text']).get('skills', [])
+                parsed_text = resume['parsed_text']
+                if isinstance(parsed_text, str):
+                    parsed = json.loads(parsed_text)
+                elif isinstance(parsed_text, dict):
+                    parsed = parsed_text
+                else:
+                    parsed = {}
+
+                skills = parsed.get('skills', [])
+
             except json.JSONDecodeError:
                 skills = []
 
@@ -890,70 +964,56 @@ def search_jobs():
     if conn:
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
-        # Get user's latest resume ID if logged in
         if 'user_id' in session:
-            try:
-                cursor.execute("""
-                    SELECT resume_id FROM resumes 
-                    WHERE user_id = %s 
-                    ORDER BY created_at DESC 
-                    LIMIT 1
-                """, (session['user_id'],))
-                resume_row = cursor.fetchone()
-                if resume_row:
-                    user_resume_id = resume_row['resume_id']
-            except Exception as e:
-                logger.error(f"Error getting user resume: {e}")
+            cursor.execute("""
+                SELECT resume_id FROM resumes
+                WHERE user_id = %s
+                ORDER BY created_at DESC
+                LIMIT 1
+            """, (session['user_id'],))
+            row = cursor.fetchone()
+            if row:
+                user_resume_id = row['resume_id']
 
-        # Base query - make it less restrictive
-        base_query = """
-            SELECT * FROM jobs 
-            WHERE status = 'active' 
-            AND is_active = TRUE 
+        query_sql = """
+            SELECT * FROM jobs
+            WHERE status = 'active'
+            AND is_active = TRUE
             AND source != 'Manual'
             AND description IS NOT NULL
         """
         params = []
 
-        # Add search filters only if provided
         if query:
-            base_query += " AND (title ILIKE %s OR description ILIKE %s OR company ILIKE %s)"
-            like_pattern = f"%{query}%"
-            params.extend([like_pattern, like_pattern, like_pattern])
+            query_sql += " AND (title ILIKE %s OR description ILIKE %s OR company ILIKE %s)"
+            like = f"%{query}%"
+            params.extend([like, like, like])
 
         if location:
-            base_query += " AND location ILIKE %s"
+            query_sql += " AND location ILIKE %s"
             params.append(f"%{location}%")
 
-        base_query += " ORDER BY created_at DESC LIMIT 50"
+        query_sql += " ORDER BY created_at DESC LIMIT 50"
 
-        try:
-            cursor.execute(base_query, params)
-            jobs = cursor.fetchall()
+        cursor.execute(query_sql, params)
+        jobs = cursor.fetchall()
 
-            # Clean HTML from descriptions
-            for job in jobs:
-                if job.get('description'):
-                    job['description'] = clean_html_description(job['description'])
+        for job in jobs:
+            job['description'] = clean_html_description(job.get('description', ''))
 
-            total = len(jobs)
-            logger.info(f"Found {total} jobs for query: '{query}', location: '{location}'")
+        total = len(jobs)
+        cursor.close()
+        conn.close()
 
-        except Exception as e:
-            logger.error(f"Error searching jobs: {e}")
-            flash("Error searching jobs. Please try again.", "danger")
-        finally:
-            cursor.close()
-            conn.close()
-    else:
-        flash("Database connection error.", "danger")
+    return render_template(
+        'job_search.html',
+        jobs=jobs,
+        total=total,
+        query=query,
+        location=location,
+        user_resume_id=user_resume_id
+    )
 
-    return render_template('job_search.html',
-                         jobs=jobs,
-                         total=total,
-                         query=query,
-                         location=location,
-                         user_resume_id=user_resume_id)
 @app.route('/admin/cleanup-closed-jobs', methods=['POST'])
 def cleanup_closed_jobs():
     """Admin route to clean up jobs no longer accepting applications"""
